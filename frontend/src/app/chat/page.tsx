@@ -156,14 +156,16 @@ function ChatContent() {
     // WebSocket URL aniqlash
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const wsProto = isHttps ? 'wss' : 'ws';
-    const wsHost = (
+    const rawHost = (
       process.env.NEXT_PUBLIC_WS_URL ||
       process.env.NEXT_PUBLIC_API_URL ||
-      'http://127.0.0.1:8000'
+      ''
     )
       .replace(/^https?:\/\//, '')
       .replace(/^wss?:\/\//, '')
       .split('/')[0];
+    // Nisbiy API manzilida (/api/v1) hostni joriy oynadan olamiz
+    const wsHost = rawHost || (typeof window !== 'undefined' ? window.location.host : '127.0.0.1:8000');
 
     const wsUrl = `${wsProto}://${wsHost}/ws/chat/?token=${token}`;
 

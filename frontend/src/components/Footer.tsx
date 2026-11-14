@@ -149,7 +149,7 @@ export default function Footer() {
             ))}
             <li>
               <a
-                href="http://127.0.0.1:8000/admin"
+                href="/django-admin/"
                 target="_blank"
                 rel="noreferrer"
                 className="p-2.5 rounded-xl bg-[var(--bg-2)] hover:bg-purple-500/10 border border-[var(--border)] hover:border-purple-500/30 flex items-center justify-between transition-all group"

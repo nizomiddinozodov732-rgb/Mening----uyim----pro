@@ -23,6 +23,10 @@ ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
 # HTTPS proxy orqasida (Railway) ishlaganda sxemani aniqlash uchun
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Next.js (bitta domenda) `X-Forwarded-Host` orqali asl hostni uzatadi.
+# Bu media/rasm uchun to'g'ri (public) absolute URL yasash uchun kerak.
+USE_X_FORWARDED_HOST = True
+
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.environ.get(
         'CSRF_TRUSTED_ORIGINS',
@@ -63,6 +67,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -182,6 +187,16 @@ USE_TZ = True
 # Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Whitenoise — production'da statik fayllarni siqib xizmat qiladi
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # Media files
 MEDIA_URL = '/media/'
