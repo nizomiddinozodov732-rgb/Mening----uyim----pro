@@ -76,6 +76,20 @@ class ProfileView(generics.RetrieveUpdateAPIView):
             return UserProfileUpdateSerializer
         return UserSerializer
 
+    def post(self, request):
+        """Profil sahifasidan parolni o'zgartirish (old_password + new_password)"""
+        old_password = request.data.get('old_password', '')
+        new_password = request.data.get('new_password', '')
+
+        if not request.user.check_password(old_password):
+            return Response({'error': "Joriy parol noto'g'ri"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new_password) < 8:
+            return Response({'error': "Yangi parol kamida 8 ta belgidan iborat bo'lishi kerak"}, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+        return Response({'message': "Parol muvaffaqiyatli o'zgartirildi"})
+
 
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
