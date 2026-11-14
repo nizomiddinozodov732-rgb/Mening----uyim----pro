@@ -95,7 +95,7 @@ export default function Properties() {
 
   useEffect(() => {
     load();
-  }, [filters.type, filters.bedrooms, filters.ordering]); // eslint-disable-line
+  }, [filters.type, filters.bedrooms, filters.ordering]);
 
   const handleRatingSuccess = (updatedData: { rating: number; rating_count: number }) => {
     // Ro'yxatni yangilab, reyting o'zgarganda saralashni yangilash

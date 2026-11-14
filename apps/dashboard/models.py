@@ -255,6 +255,8 @@ class SiteSetting(models.Model):
     contact_phone = models.CharField(max_length=20, default="+998 90 123 45 67")
     telegram_url = models.CharField(max_length=255, blank=True, default="https://t.me/houseshop_uz")
     instagram_url = models.CharField(max_length=255, blank=True, default="https://instagram.com/houseshop_uz")
+    # Kalkulyator narxlari (admin panel orqali boshqariladi)
+    calculator = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

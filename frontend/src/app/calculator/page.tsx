@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { api } from '@/store/useStore';
 import { 
   Calculator as CalcIcon, Building2, Wrench, Layers, 
   Download, Printer, Sparkles, Check, ChevronRight, 
@@ -10,11 +11,65 @@ import {
   Sliders, ArrowUpRight, ShieldCheck
 } from 'lucide-react';
 
+// Admin panelda kiritilmagan bo'lsa ishlatiladigan standart narxlar
+const DEFAULT_CALC = {
+  usd_rate: 12850,
+  construction: {
+    base_m2: 3300000,
+    basement_m2: 1150000,
+    roof_tile: 140000,
+    roof_soft: 90000,
+    heating_floor: 180000,
+    heating_combined: 250000,
+    wall_brick: 1.15,
+    wall_aerated: 1.05,
+    wall_cinder: 0.95,
+    wall_monolit: 1.25,
+    finish_rough: 0.65,
+    finish_standard: 1.0,
+    finish_premium: 1.45,
+  } as Record<string, number>,
+  renovation: {
+    base_cosmetic: 950000,
+    base_standard: 1800000,
+    base_euro: 2950000,
+    plumbing: 240000,
+    electric: 200000,
+    ceiling_stretch: 120000,
+    ceiling_drywall: 210000,
+    floor_laminate: 140000,
+    floor_tile: 240000,
+    floor_parquet: 480000,
+    wall_decorative: 180000,
+    door_standard: 1300000,
+    door_euro: 2200000,
+  } as Record<string, number>,
+};
+
 export default function CalculatorPage() {
   // Asosiy rejim: 'construction' (Uy qurish) yoki 'renovation' (Ta'mirlash)
   const [activeTab, setActiveTab] = useState<'construction' | 'renovation'>('construction');
   const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS');
-  const USD_RATE = 12850;
+
+  // Narxlar admin paneldan yuklanadi
+  const [calcCfg, setCalcCfg] = useState(DEFAULT_CALC);
+
+  useEffect(() => {
+    api.get('/dashboard/settings/')
+      .then((res) => {
+        const c = res.data?.calculator;
+        if (c) {
+          setCalcCfg({
+            usd_rate: Number(c.usd_rate) || DEFAULT_CALC.usd_rate,
+            construction: { ...DEFAULT_CALC.construction, ...(c.construction || {}) },
+            renovation: { ...DEFAULT_CALC.renovation, ...(c.renovation || {}) },
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const USD_RATE = calcCfg.usd_rate;
 
   // ==========================================
   // 1. UY QURILISHI HOLATI (CONSTRUCTION)
@@ -93,31 +148,32 @@ export default function CalculatorPage() {
   // HISOBLASHLAR: UY QURILISHI (CONSTRUCTION)
   // ==========================================
   const constructionData = useMemo(() => {
-    let baseM2 = 3300000;
+    const cc = calcCfg.construction;
+    const baseM2 = cc.base_m2;
 
     const wallMultiplier: Record<string, number> = {
-      brick: 1.15,
-      aerated: 1.05,
-      cinder: 0.95,
-      monolit: 1.25,
+      brick: cc.wall_brick,
+      aerated: cc.wall_aerated,
+      cinder: cc.wall_cinder,
+      monolit: cc.wall_monolit,
     };
 
     const finishMultiplier: Record<string, number> = {
-      rough: 0.65,
-      standard: 1.0,
-      premium: 1.45,
+      rough: cc.finish_rough,
+      standard: cc.finish_standard,
+      premium: cc.finish_premium,
     };
 
     const floorFactor = 1.0 + (cFloors - 1) * 0.12;
     let perM2 = baseM2 * (wallMultiplier[cWallMaterial] || 1.1) * (finishMultiplier[cFinishLevel] || 1.0) * floorFactor;
 
-    if (cRoofType === 'tile') perM2 += 140000;
-    if (cRoofType === 'soft') perM2 += 90000;
-    if (cHeating === 'floor') perM2 += 180000;
-    if (cHeating === 'combined') perM2 += 250000;
+    if (cRoofType === 'tile') perM2 += cc.roof_tile;
+    if (cRoofType === 'soft') perM2 += cc.roof_soft;
+    if (cHeating === 'floor') perM2 += cc.heating_floor;
+    if (cHeating === 'combined') perM2 += cc.heating_combined;
 
     let totalCost = perM2 * cArea;
-    if (cHasBasement) totalCost += cArea * 1150000;
+    if (cHasBasement) totalCost += cArea * cc.basement_m2;
 
     const totalBricks = cWallMaterial === 'brick' ? Math.round(cArea * 260 * cFloors) : Math.round(cArea * 40 * cFloors);
     const cementBags = Math.round(cArea * 2.2 * cFloors + (cHasBasement ? cArea * 1.5 : 0));
@@ -160,33 +216,34 @@ export default function CalculatorPage() {
         { title: "Logistika va kutilmagan zaxira", amount: Math.round(permitsAndTransport), pct: 5, color: 'bg-slate-400' },
       ],
     };
-  }, [cArea, cFloors, cWallMaterial, cRoofType, cFinishLevel, cHeating, cHasBasement]);
+  }, [cArea, cFloors, cWallMaterial, cRoofType, cFinishLevel, cHeating, cHasBasement, calcCfg]);
 
   // ==========================================
   // HISOBLASHLAR: UYNI TA'MIRLASH (RENOVATION)
   // ==========================================
   const renovationData = useMemo(() => {
+    const rc = calcCfg.renovation;
     const baseRates: Record<string, number> = {
-      cosmetic: 950000,
-      standard: 1800000,
-      euro: 2950000,
+      cosmetic: rc.base_cosmetic,
+      standard: rc.base_standard,
+      euro: rc.base_euro,
     };
-    let perM2 = baseRates[rType] || 1800000;
+    let perM2 = baseRates[rType] || rc.base_standard;
 
-    if (rPlumbing) perM2 += 240000;
-    if (rElectric) perM2 += 200000;
+    if (rPlumbing) perM2 += rc.plumbing;
+    if (rElectric) perM2 += rc.electric;
 
-    if (rCeilingType === 'stretch') perM2 += 120000;
-    if (rCeilingType === 'drywall') perM2 += 210000;
+    if (rCeilingType === 'stretch') perM2 += rc.ceiling_stretch;
+    if (rCeilingType === 'drywall') perM2 += rc.ceiling_drywall;
 
-    if (rFloorType === 'laminate') perM2 += 140000;
-    if (rFloorType === 'tile') perM2 += 240000;
-    if (rFloorType === 'parquet') perM2 += 480000;
+    if (rFloorType === 'laminate') perM2 += rc.floor_laminate;
+    if (rFloorType === 'tile') perM2 += rc.floor_tile;
+    if (rFloorType === 'parquet') perM2 += rc.floor_parquet;
 
-    if (rWallFinish === 'decorative') perM2 += 180000;
+    if (rWallFinish === 'decorative') perM2 += rc.wall_decorative;
 
-    const doorsTotal = rDoorsCount * (rType === 'euro' ? 2200000 : 1300000);
-    let totalCost = perM2 * rArea + doorsTotal;
+    const doorsTotal = rDoorsCount * (rType === 'euro' ? rc.door_euro : rc.door_standard);
+    const totalCost = perM2 * rArea + doorsTotal;
 
     const wallpaperRolls = Math.round((rArea * 2.8) / 5);
     const paintLiters = Math.round(rArea * 0.7);
@@ -227,7 +284,7 @@ export default function CalculatorPage() {
         { title: "Chiqindi tashish va tozalash", amount: Math.round(cleaningTransport), pct: 12, color: 'bg-slate-400' },
       ],
     };
-  }, [rArea, rType, rWallFinish, rFloorType, rCeilingType, rPlumbing, rElectric, rDoorsCount]);
+  }, [rArea, rType, rWallFinish, rFloorType, rCeilingType, rPlumbing, rElectric, rDoorsCount, calcCfg]);
 
   const current = activeTab === 'construction' ? constructionData : renovationData;
 

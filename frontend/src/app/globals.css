@@ -71,8 +71,10 @@ body {
   background-image:
     radial-gradient(ellipse at 0% 0%, rgba(37,99,235,.05) 0, transparent 60%),
     radial-gradient(ellipse at 100% 0%, rgba(99,102,241,.04) 0, transparent 50%);
-  background-attachment: fixed;
 }
+
+/* Fon rasm scroll paytida qayta hisoblanmasligi uchun fixed olib tashlandi —
+   `background-attachment: fixed` sahifa siljishida kuchli lag beradi. */
 
 .dark body {
   background-image:

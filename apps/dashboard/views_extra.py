@@ -18,6 +18,44 @@ import random
 User = get_user_model()
 
 
+# Kalkulyator narxlarining standart qiymatlari
+DEFAULT_CALCULATOR = {
+    "usd_rate": 12850,
+    "construction": {
+        "base_m2": 3300000, "basement_m2": 1150000,
+        "roof_tile": 140000, "roof_soft": 90000,
+        "heating_floor": 180000, "heating_combined": 250000,
+        "wall_brick": 1.15, "wall_aerated": 1.05, "wall_cinder": 0.95, "wall_monolit": 1.25,
+        "finish_rough": 0.65, "finish_standard": 1.0, "finish_premium": 1.45,
+    },
+    "renovation": {
+        "base_cosmetic": 950000, "base_standard": 1800000, "base_euro": 2950000,
+        "plumbing": 240000, "electric": 200000,
+        "ceiling_stretch": 120000, "ceiling_drywall": 210000,
+        "floor_laminate": 140000, "floor_tile": 240000, "floor_parquet": 480000,
+        "wall_decorative": 180000, "door_standard": 1300000, "door_euro": 2200000,
+    },
+}
+
+
+def get_calculator_config(saved):
+    """Saqlangan qiymatlarni standart qiymatlar bilan birlashtiradi."""
+    saved = saved if isinstance(saved, dict) else {}
+    result = {}
+    for key, default_value in DEFAULT_CALCULATOR.items():
+        if isinstance(default_value, dict):
+            merged = dict(default_value)
+            saved_section = saved.get(key)
+            if isinstance(saved_section, dict):
+                for k, v in saved_section.items():
+                    if k in merged:
+                        merged[k] = v
+            result[key] = merged
+        else:
+            result[key] = saved.get(key, default_value)
+    return result
+
+
 def log_action(user, action, target_type='', target_id=None, target_name='', details='', ip=''):
     AuditLog.objects.create(
         user=user, action=action, target_type=target_type,
@@ -402,6 +440,7 @@ class SiteSettingView(APIView):
             "contact_phone": s.contact_phone,
             "telegram_url": s.telegram_url,
             "instagram_url": s.instagram_url,
+            "calculator": get_calculator_config(s.calculator),
             "updated_at": s.updated_at.strftime("%Y-%m-%d %H:%M") if s.updated_at else '',
         })
 
@@ -424,6 +463,25 @@ class SiteSettingView(APIView):
             s.telegram_url = request.data.get('telegram_url', '').strip()
         if 'instagram_url' in request.data:
             s.instagram_url = request.data.get('instagram_url', '').strip()
+        incoming = request.data.get('calculator')
+        if isinstance(incoming, dict):
+            current = get_calculator_config(s.calculator)
+
+            def _num(value, default):
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return default
+
+            if 'usd_rate' in incoming:
+                current['usd_rate'] = _num(incoming.get('usd_rate'), current['usd_rate'])
+            for section in ('construction', 'renovation'):
+                section_data = incoming.get(section)
+                if isinstance(section_data, dict):
+                    for key, value in section_data.items():
+                        if key in current[section]:
+                            current[section][key] = _num(value, current[section][key])
+            s.calculator = current
         s.save()
         log_action(request.user, 'settings_changed', 'setting', details="Bosh sahifa matnlari yangilandi")
         return Response({
@@ -438,6 +496,7 @@ class SiteSettingView(APIView):
                 "contact_phone": s.contact_phone,
                 "telegram_url": s.telegram_url,
                 "instagram_url": s.instagram_url,
+                "calculator": get_calculator_config(s.calculator),
                 "updated_at": s.updated_at.strftime("%Y-%m-%d %H:%M"),
             }
         })

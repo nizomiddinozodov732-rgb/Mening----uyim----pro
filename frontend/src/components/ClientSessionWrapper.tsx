@@ -19,7 +19,6 @@ export default function ClientSessionWrapper({ children }: { children: React.Rea
     api.get('/auth/profile/')
       .then(res => setUser(res.data))
       .catch(() => logout());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <>{children}</>;

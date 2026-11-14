@@ -23,23 +23,30 @@ interface MenuItem {
   badge?: string;
 }
 
+// Live clock — alohida komponent, shunda har soniyadagi yangilanish
+// butun admin panelni qayta render qilmaydi (faqat soat qayta chiziladi).
+function LiveClock() {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      setTime(new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return <span className="font-mono font-medium">{time}</span>;
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoggedIn, logout, setUser } = useStore();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState('');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const tick = () => {
-      const now = new Date();
-      setCurrentTime(now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -128,7 +135,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { name: 'Audit Log', href: '/admin/audit-log', icon: FileText, access: 'super' },
         { name: 'Xavfsizlik', href: '/admin/security', icon: Lock, access: 'super' },
         { name: 'Server Holati', href: '/admin/system', icon: Server, access: 'super' },
-        { name: 'Sozlamalar', href: '/admin/settings', icon: Settings, access: 'super' },
+        { name: 'Sozlamalar', href: '/admin/settings', icon: Settings, access: 'all' },
       ]
     },
   ];
@@ -238,7 +245,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             <div className="hidden sm:flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <Clock size={14} />
-              <span className="font-mono font-medium">{currentTime}</span>
+              <LiveClock />
               <span className="text-slate-300 dark:text-slate-600">|</span>
               <span className="text-xs">{new Date().toLocaleDateString('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
             </div>
@@ -260,9 +267,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/3 rounded-full filter blur-[120px] pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-sky-500/3 rounded-full filter blur-[100px] pointer-events-none"></div>
+        <div
+          className="flex-1 overflow-y-auto p-4 md:p-8 relative"
+          style={{
+            backgroundImage:
+              'radial-gradient(600px 400px at 100% 0%, rgba(59,130,246,.05), transparent), radial-gradient(500px 400px at 0% 100%, rgba(14,165,233,.04), transparent)',
+          }}
+        >
           <div className="max-w-[1400px] mx-auto relative z-10">
             {children}
           </div>

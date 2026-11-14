@@ -269,7 +269,10 @@ class AdminUsersListView(APIView):
         profession = request.query_params.get('profession', '')
         status_filter = request.query_params.get('status', '')
 
-        users = User.objects.all().order_by('-date_joined')
+        users = User.objects.annotate(
+            _properties_count=Count('properties', distinct=True),
+            _payments_count=Count('payments', distinct=True),
+        ).order_by('-date_joined')
 
         if search:
             users = users.filter(
@@ -315,8 +318,8 @@ class AdminUsersListView(APIView):
                 "is_online": u.is_online,
                 "date_joined": u.date_joined.strftime("%Y-%m-%d %H:%M"),
                 "last_seen": u.last_seen.strftime("%Y-%m-%d %H:%M") if u.last_seen else '',
-                "properties_count": u.properties.count(),
-                "payments_count": u.payments.count(),
+                "properties_count": u._properties_count,
+                "payments_count": u._payments_count,
             })
         return Response(data)
 
@@ -554,7 +557,10 @@ class AdminPropertiesView(APIView):
 
         data = []
         for p in properties:
-            img = p.images.filter(is_primary=True).first() or p.images.first()
+            # prefetch_related('images') keshidan foydalanamiz — har bir e'lon uchun
+            # alohida so'rov yubormaslik uchun (N+1 muammosini oldini oladi)
+            images = list(p.images.all())
+            img = next((i for i in images if i.is_primary), None) or (images[0] if images else None)
             data.append({
                 "id": p.id,
                 "title": p.title,
@@ -562,6 +568,9 @@ class AdminPropertiesView(APIView):
                 "type_display": p.get_property_type_display(),
                 "price": str(p.price),
                 "location": p.location,
+                "description": p.description,
+                "features": p.features,
+                "video_url": p.video_url,
                 "bedrooms": p.bedrooms,
                 "bathrooms": p.bathrooms,
                 "area": p.area,
@@ -572,7 +581,7 @@ class AdminPropertiesView(APIView):
                 "owner_name": p.owner.get_full_name() or p.owner.username,
                 "owner_phone": p.owner.phone or '',
                 "primary_image": img.image.url if img else None,
-                "images_count": p.images.count(),
+                "images_count": len(images),
                 "created_at": p.created_at.strftime("%Y-%m-%d %H:%M"),
             })
         return Response(data)
@@ -601,6 +610,157 @@ class AdminPropertiesView(APIView):
             return Response({"success": True, "message": "E'lon o'chirildi"})
 
         return Response({"error": "Noto'g'ri amal"}, status=400)
+
+    @staticmethod
+    def _parse_features(value):
+        if isinstance(value, list):
+            return [str(f).strip() for f in value if str(f).strip()]
+        if isinstance(value, str):
+            return [f.strip() for f in value.split(',') if f.strip()]
+        return []
+
+    @staticmethod
+    def _to_int(value, default=0):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _to_float(value, default=0.0):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def post(self, request):
+        data = request.data
+
+        title = (data.get('title') or '').strip()
+        property_type = data.get('property_type') or 'house'
+        location = (data.get('location') or '').strip()
+        description = (data.get('description') or '').strip()
+        price = data.get('price')
+        area = data.get('area')
+
+        if not title:
+            return Response({"error": "Sarlavha kiritilishi shart"}, status=400)
+        if property_type not in dict(Property.TYPE_CHOICES):
+            return Response({"error": "Noto'g'ri mulk turi"}, status=400)
+        if not location:
+            return Response({"error": "Manzil kiritilishi shart"}, status=400)
+        try:
+            price_val = float(price)
+        except (TypeError, ValueError):
+            return Response({"error": "Narx to'g'ri kiritilmagan"}, status=400)
+        try:
+            area_val = float(area)
+        except (TypeError, ValueError):
+            return Response({"error": "Maydon to'g'ri kiritilmagan"}, status=400)
+
+        owner = request.user
+        owner_id = data.get('owner_id')
+        if owner_id:
+            owner = User.objects.filter(id=owner_id).first()
+            if not owner:
+                return Response({"error": "Egasi topilmadi"}, status=404)
+
+        status_val = data.get('status') or 'active'
+        if status_val not in dict(Property.STATUS_CHOICES):
+            status_val = 'active'
+
+        prop = Property(
+            title=title,
+            property_type=property_type,
+            price=price_val,
+            location=location,
+            latitude=self._to_float(data.get('latitude'), 41.2995),
+            longitude=self._to_float(data.get('longitude'), 69.2401),
+            bedrooms=self._to_int(data.get('bedrooms')),
+            bathrooms=self._to_int(data.get('bathrooms')),
+            area=area_val,
+            description=description,
+            features=self._parse_features(data.get('features')),
+            video_url=(data.get('video_url') or '').strip(),
+            status=status_val,
+            owner=owner,
+        )
+        prop.save()
+
+        return Response({
+            "success": True,
+            "message": "E'lon muvaffaqiyatli yaratildi",
+            "id": prop.id,
+        }, status=201)
+
+    def put(self, request):
+        data = request.data
+
+        prop_id = data.get('property_id') or data.get('id')
+        if not prop_id:
+            return Response({"error": "E'lon ID ko'rsatilmagan"}, status=400)
+
+        try:
+            prop = Property.objects.get(id=prop_id)
+        except Property.DoesNotExist:
+            return Response({"error": "E'lon topilmadi"}, status=404)
+
+        if 'title' in data:
+            title = (data.get('title') or '').strip()
+            if not title:
+                return Response({"error": "Sarlavha bo'sh bo'lishi mumkin emas"}, status=400)
+            prop.title = title
+        if 'property_type' in data:
+            property_type = data.get('property_type')
+            if property_type not in dict(Property.TYPE_CHOICES):
+                return Response({"error": "Noto'g'ri mulk turi"}, status=400)
+            prop.property_type = property_type
+        if 'location' in data:
+            location = (data.get('location') or '').strip()
+            if not location:
+                return Response({"error": "Manzil bo'sh bo'lishi mumkin emas"}, status=400)
+            prop.location = location
+        if 'price' in data:
+            try:
+                prop.price = float(data.get('price'))
+            except (TypeError, ValueError):
+                return Response({"error": "Narx to'g'ri kiritilmagan"}, status=400)
+        if 'area' in data:
+            try:
+                prop.area = float(data.get('area'))
+            except (TypeError, ValueError):
+                return Response({"error": "Maydon to'g'ri kiritilmagan"}, status=400)
+        if 'bedrooms' in data:
+            prop.bedrooms = self._to_int(data.get('bedrooms'))
+        if 'bathrooms' in data:
+            prop.bathrooms = self._to_int(data.get('bathrooms'))
+        if 'description' in data:
+            prop.description = (data.get('description') or '').strip()
+        if 'features' in data:
+            prop.features = self._parse_features(data.get('features'))
+        if 'video_url' in data:
+            prop.video_url = (data.get('video_url') or '').strip()
+        if 'latitude' in data:
+            prop.latitude = self._to_float(data.get('latitude'), prop.latitude)
+        if 'longitude' in data:
+            prop.longitude = self._to_float(data.get('longitude'), prop.longitude)
+        if 'status' in data:
+            status_val = data.get('status')
+            if status_val in dict(Property.STATUS_CHOICES):
+                prop.status = status_val
+        if data.get('owner_id'):
+            owner = User.objects.filter(id=data.get('owner_id')).first()
+            if not owner:
+                return Response({"error": "Egasi topilmadi"}, status=404)
+            prop.owner = owner
+
+        prop.save()
+
+        return Response({
+            "success": True,
+            "message": "E'lon ma'lumotlari yangilandi",
+            "id": prop.id,
+        })
 
 
 class AdminComplaintsView(APIView):
@@ -736,62 +896,3 @@ class HomeStatsView(APIView):
             "total_workers": total_workers,
         })
 
-
-class SiteSettingView(APIView):
-    """Bosh sahifa kontenti sozlamalari (GET - barcha, PUT/PATCH - admin va super admin)"""
-    def get_permissions(self):
-        if self.request.method in ['PUT', 'PATCH']:
-            return [IsAdminOrSuperAdmin()]
-        return [permissions.AllowAny()]
-
-    def get(self, request):
-        s = SiteSetting.get_settings()
-        return Response({
-            "hero_badge": s.hero_badge,
-            "hero_title": s.hero_title,
-            "hero_subtitle": s.hero_subtitle,
-            "announcement_text": s.announcement_text,
-            "contact_email": s.contact_email,
-            "contact_phone": s.contact_phone,
-            "telegram_url": s.telegram_url,
-            "instagram_url": s.instagram_url,
-            "updated_at": s.updated_at.strftime("%Y-%m-%d %H:%M") if s.updated_at else '',
-        })
-
-    def put(self, request):
-        s = SiteSetting.get_settings()
-        data = request.data
-
-        if 'hero_badge' in data:
-            s.hero_badge = data.get('hero_badge', '').strip()
-        if 'hero_title' in data:
-            s.hero_title = data.get('hero_title', '').strip()
-        if 'hero_subtitle' in data:
-            s.hero_subtitle = data.get('hero_subtitle', '').strip()
-        if 'announcement_text' in data:
-            s.announcement_text = data.get('announcement_text', '').strip()
-        if 'contact_email' in data:
-            s.contact_email = data.get('contact_email', '').strip()
-        if 'contact_phone' in data:
-            s.contact_phone = data.get('contact_phone', '').strip()
-        if 'telegram_url' in data:
-            s.telegram_url = data.get('telegram_url', '').strip()
-        if 'instagram_url' in data:
-            s.instagram_url = data.get('instagram_url', '').strip()
-
-        s.save()
-        return Response({
-            "success": True,
-            "message": "Bosh sahifa sozlamalari yangilandi",
-            "settings": {
-                "hero_badge": s.hero_badge,
-                "hero_title": s.hero_title,
-                "hero_subtitle": s.hero_subtitle,
-                "announcement_text": s.announcement_text,
-                "contact_email": s.contact_email,
-                "contact_phone": s.contact_phone,
-                "telegram_url": s.telegram_url,
-                "instagram_url": s.instagram_url,
-                "updated_at": s.updated_at.strftime("%Y-%m-%d %H:%M"),
-            }
-        })

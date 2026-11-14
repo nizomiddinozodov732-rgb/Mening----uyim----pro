@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { api, useStore } from '@/store/useStore';
 import { 
   Building2, Search, Filter, Trash2, Eye, MapPin, 
-  Bed, Bath, Expand, CheckCircle2, XCircle, Clock
+  Bed, Bath, Expand, CheckCircle2, XCircle, Clock,
+  Plus, Edit3, X
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -18,6 +19,9 @@ interface AdminProperty {
   bedrooms: number;
   bathrooms: number;
   area: number;
+  description: string;
+  features: string[] | string;
+  video_url: string;
   status: string;
   status_display: string;
   views_count: number;
@@ -39,6 +43,103 @@ export default function AdminPropertiesPage() {
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   const isSuperAdmin = currentUser?.is_super_admin || false;
+
+  const [owners, setOwners] = useState<{ id: number; full_name: string; username: string }[]>([]);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProperty, setEditingProperty] = useState<AdminProperty | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const emptyForm = {
+    title: '',
+    property_type: 'house',
+    price: '',
+    location: '',
+    bedrooms: 0,
+    bathrooms: 0,
+    area: '',
+    description: '',
+    features: '',
+    video_url: '',
+    status: 'active',
+    owner_id: '',
+  };
+
+  const [createForm, setCreateForm] = useState({ ...emptyForm });
+  const [editForm, setEditForm] = useState({ ...emptyForm, property_id: 0 });
+
+  const fetchOwners = useCallback(async () => {
+    try {
+      const res = await api.get('/dashboard/users/');
+      setOwners(
+        (res.data || []).map((u: any) => ({
+          id: u.id,
+          full_name: u.full_name,
+          username: u.username,
+        }))
+      );
+    } catch (err) {
+      console.error('Error fetching owners:', err);
+    }
+  }, []);
+
+  const openEditModal = (p: AdminProperty) => {
+    setEditingProperty(p);
+    setEditForm({
+      property_id: p.id,
+      title: p.title,
+      property_type: p.property_type,
+      price: String(parseFloat(p.price)),
+      location: p.location,
+      bedrooms: p.bedrooms,
+      bathrooms: p.bathrooms,
+      area: String(p.area),
+      description: p.description || '',
+      features: Array.isArray(p.features) ? p.features.join(', ') : (p.features || ''),
+      video_url: p.video_url || '',
+      status: p.status,
+      owner_id: String(p.owner_id),
+    });
+    setFormError('');
+    if (owners.length === 0) fetchOwners();
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    setSubmitting(true);
+    try {
+      const payload: any = { ...createForm };
+      if (payload.owner_id) payload.owner_id = Number(payload.owner_id);
+      else delete payload.owner_id;
+      await api.post('/dashboard/properties/', payload);
+      setIsCreateOpen(false);
+      setCreateForm({ ...emptyForm });
+      fetchProperties();
+    } catch (err: any) {
+      setFormError(err.response?.data?.error || "E'lon yaratishda xatolik yuz berdi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    setSubmitting(true);
+    try {
+      const payload: any = { ...editForm };
+      if (payload.owner_id) payload.owner_id = Number(payload.owner_id);
+      else delete payload.owner_id;
+      await api.put('/dashboard/properties/', payload);
+      setEditingProperty(null);
+      fetchProperties();
+    } catch (err: any) {
+      setFormError(err.response?.data?.error || "E'lon ma'lumotlarini saqlashda xatolik yuz berdi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const fetchProperties = useCallback(async () => {
     try {
@@ -111,6 +212,16 @@ export default function AdminPropertiesPage() {
           </h1>
           <p className="text-slate-500 text-sm">Jami {properties.length} ta e&apos;lon tizimda</p>
         </div>
+        <button
+          onClick={() => {
+            setFormError('');
+            setIsCreateOpen(true);
+            if (owners.length === 0) fetchOwners();
+          }}
+          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all hover:shadow-none"
+        >
+          <Plus size={18} /> Yangi e&apos;lon
+        </button>
       </div>
 
       {/* Filters */}
@@ -239,6 +350,13 @@ export default function AdminPropertiesPage() {
                         >
                           <Eye size={16} />
                         </Link>
+                        <button 
+                          onClick={() => openEditModal(p)}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                          title="Tahrirlash"
+                        >
+                          <Edit3 size={16} />
+                        </button>
                         {isSuperAdmin && (
                           <button 
                             onClick={() => handleDelete(p.id)}
@@ -258,6 +376,386 @@ export default function AdminPropertiesPage() {
           </table>
         </div>
       </div>
+
+      {/* Create Property Modal */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4" onClick={() => setIsCreateOpen(false)}>
+          <div className="bg-white dark:bg-[#12122a] rounded-2xl border border-slate-200 dark:border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-white/5 mb-4">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Plus className="text-emerald-600" size={20} /> Yangi e&apos;lon yaratish
+              </h3>
+              <button onClick={() => setIsCreateOpen(false)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400">
+                <X size={18} />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="p-3 mb-4 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Sarlavha *</label>
+                <input
+                  type="text"
+                  required
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  placeholder="masalan: 3 xonali yangi kvartira"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Mulk turi *</label>
+                  <select
+                    value={createForm.property_type}
+                    onChange={(e) => setCreateForm({ ...createForm, property_type: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  >
+                    <option value="house">Uy</option>
+                    <option value="apartment">Kvartira</option>
+                    <option value="land">Yer</option>
+                    <option value="rental">Ijara</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Holat *</label>
+                  <select
+                    value={createForm.status}
+                    onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  >
+                    <option value="active">Faol</option>
+                    <option value="pending">Kutilmoqda</option>
+                    <option value="sold">Sotilgan</option>
+                    <option value="inactive">Nofaol</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Narx (UZS) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step="0.01"
+                    value={createForm.price}
+                    onChange={(e) => setCreateForm({ ...createForm, price: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                    placeholder="500000000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Maydon (m²) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step="0.1"
+                    value={createForm.area}
+                    onChange={(e) => setCreateForm({ ...createForm, area: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                    placeholder="85"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Manzil *</label>
+                <input
+                  type="text"
+                  required
+                  value={createForm.location}
+                  onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  placeholder="Toshkent, Chilonzor tumani"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Xonalar soni</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={createForm.bedrooms}
+                    onChange={(e) => setCreateForm({ ...createForm, bedrooms: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Hammomlar soni</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={createForm.bathrooms}
+                    onChange={(e) => setCreateForm({ ...createForm, bathrooms: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Tavsif</label>
+                <textarea
+                  rows={3}
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white resize-none"
+                  placeholder="E'lon haqida batafsil ma'lumot..."
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Qulayliklar (vergul bilan)</label>
+                  <input
+                    type="text"
+                    value={createForm.features}
+                    onChange={(e) => setCreateForm({ ...createForm, features: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                    placeholder="Garaj, Hovli, Konditsioner"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Video URL</label>
+                  <input
+                    type="url"
+                    value={createForm.video_url}
+                    onChange={(e) => setCreateForm({ ...createForm, video_url: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                    placeholder="https://youtube.com/..."
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Egasi</label>
+                <select
+                  value={createForm.owner_id}
+                  onChange={(e) => setCreateForm({ ...createForm, owner_id: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                >
+                  <option value="">O&apos;zim (admin)</option>
+                  {owners.map((o) => (
+                    <option key={o.id} value={o.id}>{o.full_name} (@{o.username})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-white/5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5 transition-all"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {submitting ? "Saqlanmoqda..." : "Yaratish"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Property Modal */}
+      {editingProperty && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4" onClick={() => setEditingProperty(null)}>
+          <div className="bg-white dark:bg-[#12122a] rounded-2xl border border-slate-200 dark:border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-white/5 mb-4">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Edit3 className="text-emerald-600" size={20} /> E&apos;lonni tahrirlash
+              </h3>
+              <button onClick={() => setEditingProperty(null)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400">
+                <X size={18} />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="p-3 mb-4 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Sarlavha *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Mulk turi *</label>
+                  <select
+                    value={editForm.property_type}
+                    onChange={(e) => setEditForm({ ...editForm, property_type: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  >
+                    <option value="house">Uy</option>
+                    <option value="apartment">Kvartira</option>
+                    <option value="land">Yer</option>
+                    <option value="rental">Ijara</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Holat *</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  >
+                    <option value="active">Faol</option>
+                    <option value="pending">Kutilmoqda</option>
+                    <option value="sold">Sotilgan</option>
+                    <option value="inactive">Nofaol</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Narx (UZS) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step="0.01"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Maydon (m²) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step="0.1"
+                    value={editForm.area}
+                    onChange={(e) => setEditForm({ ...editForm, area: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Manzil *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.location}
+                  onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Xonalar soni</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editForm.bedrooms}
+                    onChange={(e) => setEditForm({ ...editForm, bedrooms: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Hammomlar soni</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editForm.bathrooms}
+                    onChange={(e) => setEditForm({ ...editForm, bathrooms: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Tavsif</label>
+                <textarea
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Qulayliklar (vergul bilan)</label>
+                  <input
+                    type="text"
+                    value={editForm.features}
+                    onChange={(e) => setEditForm({ ...editForm, features: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Video URL</label>
+                  <input
+                    type="url"
+                    value={editForm.video_url}
+                    onChange={(e) => setEditForm({ ...editForm, video_url: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Egasi</label>
+                <select
+                  value={editForm.owner_id}
+                  onChange={(e) => setEditForm({ ...editForm, owner_id: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-sm outline-none focus:border-emerald-500 text-slate-800 dark:text-white"
+                >
+                  {owners.map((o) => (
+                    <option key={o.id} value={o.id}>{o.full_name} (@{o.username})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-white/5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingProperty(null)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5 transition-all"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {submitting ? "Saqlanmoqda..." : "O'zgarishlarni saqlash"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -94,7 +94,7 @@ export default function PropertyDetail() {
     }
   };
 
-  useEffect(() => { fetchDetail(); }, [id]); // eslint-disable-line
+  useEffect(() => { fetchDetail(); }, [id]);
 
   const handleChat = async () => {
     if (!isLoggedIn) { router.push('/login'); return; }
