@@ -10,15 +10,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-houseshop-dev-key-change-in-production-2024')
 
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+IS_VERCEL = os.environ.get('VERCEL') == '1' or bool(os.environ.get('VERCEL_URL'))
+DEBUG = os.environ.get(
+    'DEBUG', 'False' if IS_VERCEL else 'True'
+).lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get(
+        'ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0'
+    ).split(',')
+    if host.strip()
+]
 
-# Railway/Render kabi platformalar DOMAIN ni avtomatik beradi
-RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
-if RAILWAY_PUBLIC_DOMAIN:
-    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
-ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
+# Hosting platforms provide their assigned domain through environment variables.
+RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+VERCEL_HOSTS = [
+    os.environ.get(name, '').strip().split('/')[0]
+    for name in (
+        'VERCEL_URL',
+        'VERCEL_BRANCH_URL',
+        'VERCEL_PROJECT_PRODUCTION_URL',
+    )
+    if os.environ.get(name, '').strip()
+]
+ALLOWED_HOSTS.extend(
+    host for host in [RAILWAY_PUBLIC_DOMAIN, *VERCEL_HOSTS] if host
+)
 
 # HTTPS proxy orqasida (Railway) ishlaganda sxemani aniqlash uchun
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -33,8 +51,11 @@ CSRF_TRUSTED_ORIGINS = [
         'http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000'
     ).split(',') if o
 ]
-if RAILWAY_PUBLIC_DOMAIN:
-    CSRF_TRUSTED_ORIGINS.append(f'https://{RAILWAY_PUBLIC_DOMAIN}')
+CSRF_TRUSTED_ORIGINS.extend(
+    f'https://{host}'
+    for host in [RAILWAY_PUBLIC_DOMAIN, *VERCEL_HOSTS]
+    if host
+)
 
 # Application definition
 INSTALLED_APPS = [
