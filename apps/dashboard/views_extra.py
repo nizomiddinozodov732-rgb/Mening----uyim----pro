@@ -12,8 +12,13 @@ from apps.services.models import ServiceProvider, ServiceRequest
 from apps.ratings.models import Rating
 from .models import AuditLog, Banner, PromoCode, MassNotification, ConstructionProject, SecurityLog, BlockedIP
 from .views import IsAdminOrSuperAdmin, IsSuperAdminOnly
+from apps.accounts.middleware import (
+    get_client_ip, invalidate_blocked_ips_cache, log_security_event,
+)
 from datetime import timedelta
 import random
+import secrets
+import string
 
 User = get_user_model()
 
@@ -379,7 +384,28 @@ class SecurityCenterView(APIView):
         blocked = BlockedIP.objects.all()
         login_history = [{"id": l.id, "user": l.user.get_full_name() if l.user else 'Unknown', "event": l.get_event_type_display(), "event_type": l.event_type, "ip": l.ip_address or '', "device": l.device_info, "location": l.location, "time": l.created_at.strftime('%Y-%m-%d %H:%M')} for l in logs]
         blocked_list = [{"id": b.id, "ip": b.ip_address, "reason": b.reason, "blocked_by": b.blocked_by.get_full_name() if b.blocked_by else '', "time": b.created_at.strftime('%Y-%m-%d %H:%M')} for b in blocked]
-        return Response({"login_history": login_history, "blocked_ips": blocked_list})
+
+        # Login ma'lumotlari (parollar HECH QACHON qaytarilmaydi — faqat xeshlangan holda saqlanadi)
+        users = User.objects.select_related().order_by('-last_login')[:200]
+        user_credentials = [{
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "full_name": u.get_full_name() or u.username,
+            "is_active": u.is_active,
+            "is_staff": u.is_staff,
+            "is_admin": bool(u.is_admin or u.is_staff or u.is_super_admin or u.is_superuser),
+            "is_super_admin": bool(u.is_super_admin or u.is_superuser),
+            "date_joined": u.date_joined.strftime('%Y-%m-%d %H:%M') if u.date_joined else '',
+            "last_login": u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '',
+            "password_algorithm": (u.password or '').split('$')[0] or 'unknown',
+        } for u in users]
+
+        return Response({
+            "login_history": login_history,
+            "blocked_ips": blocked_list,
+            "user_credentials": user_credentials,
+        })
 
 
 class BlockIPView(APIView):
@@ -393,6 +419,7 @@ class BlockIPView(APIView):
         obj, created = BlockedIP.objects.get_or_create(ip_address=ip, defaults={"reason": reason, "blocked_by": request.user})
         if created:
             log_action(request.user, 'ip_blocked', 'ip', details=ip)
+        invalidate_blocked_ips_cache()
         return Response({"success": True, "created": created})
 
     def delete(self, request):
@@ -400,25 +427,72 @@ class BlockIPView(APIView):
         if ip:
             BlockedIP.objects.filter(ip_address=ip).delete()
             log_action(request.user, 'ip_unblocked', 'ip', details=ip)
+        invalidate_blocked_ips_cache()
         return Response({"success": True})
 
 
+def _generate_temp_password(length=14):
+    """Xavfsiz (kriptografik tasodifiy) vaqtinchalik parol generatsiyasi."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    while True:
+        pwd = ''.join(secrets.choice(alphabet) for _ in range(length))
+        # Kamida bitta katta harf, kichik harf, raqam va belgi bo'lishini ta'minlash
+        if (any(c.islower() for c in pwd) and any(c.isupper() for c in pwd)
+                and any(c.isdigit() for c in pwd) and any(c in "!@#$%^&*" for c in pwd)):
+            return pwd
+
+
 class AdminPasswordChangeView(APIView):
+    """Super Admin tomonidan parolni xavfsiz tiklash.
+
+    - `new_password` berilsa — shu parol o'rnatiladi (kuchlilik tekshiriladi).
+    - Berilmasa — kriptografik tasodifiy vaqtinchalik parol yaratiladi va
+      FAQAT BIR MARTA javobda qaytariladi (bazada xesh ko'rinishida saqlanadi).
+    """
     permission_classes = [IsSuperAdminOnly]
 
     def post(self, request):
         uid = request.data.get('user_id')
-        new_pass = request.data.get('new_password', '')
-        if not new_pass or len(new_pass) < 6:
-            return Response({"error": "Parol kamida 6 ta belgi bo'lishi kerak"}, status=400)
+        new_pass = (request.data.get('new_password') or '').strip()
+        generated = False
+
         try:
             u = User.objects.get(id=uid)
         except (User.DoesNotExist, ValueError, TypeError):
             return Response({"error": "Foydalanuvchi topilmadi"}, status=404)
+
+        if not new_pass:
+            new_pass = _generate_temp_password()
+            generated = True
+        else:
+            from django.contrib.auth.password_validation import validate_password
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            if len(new_pass) < 8:
+                return Response({"error": "Parol kamida 8 ta belgi bo'lishi kerak"}, status=400)
+            try:
+                validate_password(new_pass, user=u)
+            except DjangoValidationError as exc:
+                return Response({"error": ' '.join(exc.messages)}, status=400)
+
         u.set_password(new_pass)
-        u.save()
-        log_action(request.user, 'password_changed', 'user', u.id, u.get_full_name(), f"Parol Super Admin tomonidan o'zgartirildi")
-        return Response({"success": True, "message": "Parol muvaffaqiyatli o'zgartirildi"})
+        u.save(update_fields=['password'])
+        log_action(
+            request.user, 'password_changed', 'user', u.id, u.get_full_name(),
+            "Parol Super Admin tomonidan xavfsiz tiklandi"
+            + (" (vaqtinchalik parol generatsiya qilindi)" if generated else ""),
+            ip=get_client_ip(request),
+        )
+        log_security_event(
+            u, 'password_reset', get_client_ip(request),
+            details=f"Super Admin ({request.user.username}) tomonidan parol tiklandi",
+        )
+
+        payload = {"success": True, "message": "Parol muvaffaqiyatli tiklandi"}
+        if generated:
+            # Vaqtinchalik parol faqat bir marta ko'rsatiladi
+            payload["temporary_password"] = new_pass
+            payload["note"] = "Bu parol faqat bir marta ko'rsatiladi. Foydalanuvchiga xavfsiz kanal orqali yetkazing."
+        return Response(payload)
 
 
 class SiteSettingView(APIView):

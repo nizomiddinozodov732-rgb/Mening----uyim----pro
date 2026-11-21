@@ -34,6 +34,14 @@ class User(AbstractUser):
     is_admin = models.BooleanField(default=False)
     is_super_admin = models.BooleanField(default=False)
 
+    # End-to-End shifrlash (E2E) uchun ochiq kalit (ECDH P-256, JWK formatida).
+    # Maxfiy kalit hech qachon serverga yuborilmaydi — faqat foydalanuvchi
+    # qurilmasida (brauzerda) saqlanadi. Server faqat shifrlangan matnni ko'radi.
+    public_key = models.TextField(
+        blank=True, default='',
+        help_text="E2E shifrlash uchun ochiq kalit (ECDH P-256, JWK)"
+    )
+
     class Meta:
         ordering = ['-date_joined']
 

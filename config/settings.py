@@ -5,15 +5,31 @@ Professional Real Estate & Construction Platform
 import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-houseshop-dev-key-change-in-production-2024')
 
 IS_VERCEL = os.environ.get('VERCEL') == '1' or bool(os.environ.get('VERCEL_URL'))
 DEBUG = os.environ.get(
     'DEBUG', 'False' if IS_VERCEL else 'True'
 ).lower() in ('true', '1', 'yes')
+
+# ── SECRET_KEY ──────────────────────────────────────────────────
+# Production'da (DEBUG=False) zaif yoki standart kalitdan foydalanish taqiqlanadi.
+_INSECURE_DEFAULT_KEY = 'django-insecure-houseshop-dev-key-change-in-production-2024'
+_secret_key = os.environ.get('SECRET_KEY', '').strip()
+if not _secret_key:
+    if DEBUG:
+        _secret_key = _INSECURE_DEFAULT_KEY
+    else:
+        raise ImproperlyConfigured(
+            "SECRET_KEY muhit o'zgaruvchisi DEBUG=False bo'lganda majburiy."
+        )
+if not DEBUG and _secret_key == _INSECURE_DEFAULT_KEY:
+    raise ImproperlyConfigured(
+        "Production'da standart (zaif) SECRET_KEY ishlatilishi mumkin emas."
+    )
+SECRET_KEY = _secret_key
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -57,6 +73,27 @@ CSRF_TRUSTED_ORIGINS.extend(
     if host
 )
 
+# ── Xavfsizlik sarlavhalari ─────────────────────────────────────
+# Cookie'lar faqat HTTPS orqali uzatiladi (production'da)
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# MIME sniffing va clickjacking himoyasi
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+
+# HTTPS majburiy va HSTS (faqat production'da)
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+# Proksi orqasidagi sog'liqni tekshirish (health check) uchun istisno
+SECURE_REDIRECT_EXEMPT = [r'^api/v1/health/']
+
 # Application definition
 INSTALLED_APPS = [
     'daphne',
@@ -69,6 +106,7 @@ INSTALLED_APPS = [
     # Third party
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
     'channels',
@@ -95,6 +133,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Bloklangan IP'larni rad etish
+    'apps.accounts.middleware.BlockedIPMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -162,7 +202,8 @@ AUTH_USER_MODEL = 'accounts.User'
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+     'OPTIONS': {'min_length': 8}},
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
@@ -182,14 +223,36 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 12,
+    # ── So'rovlar chastotasini cheklash (brute-force/DoS himoyasi) ──
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '200/hour',
+        'user': '5000/hour',
+        'login': '10/min',
+        'register': '10/hour',
+        'password_change': '10/hour',
+    },
 }
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
+    # Yangilangan (rotate qilingan) refresh token eski nusxasini bekor qiladi
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
 # CORS
@@ -198,6 +261,11 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
     'http://localhost:3000,http://127.0.0.1:3000'
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+CORS_ALLOW_HEADERS = [
+    'accept', 'accept-encoding', 'authorization', 'content-type',
+    'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with',
+]
 
 # Internationalization
 LANGUAGE_CODE = 'uz'

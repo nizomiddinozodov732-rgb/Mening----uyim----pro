@@ -40,7 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
             'profession', 'profession_display', 'avatar', 'bio', 'rating',
             'rating_count', 'is_verified', 'is_online', 'date_joined',
             'is_admin', 'is_super_admin', 'is_staff', 'is_superuser',
-            'is_subscribed', 'subscription_end',
+            'is_subscribed', 'subscription_end', 'public_key',
         ]
         read_only_fields = ['rating', 'rating_count', 'is_verified', 'date_joined']
 
@@ -54,7 +54,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'phone', 'telegram', 'whatsapp', 'instagram', 'bio', 'avatar', 'profession']
+        fields = ['first_name', 'last_name', 'phone', 'telegram', 'whatsapp', 'instagram', 'bio', 'avatar', 'profession', 'public_key']
 
 
 class AdminUserSerializer(serializers.ModelSerializer):

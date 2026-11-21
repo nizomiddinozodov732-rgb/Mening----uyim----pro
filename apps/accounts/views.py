@@ -5,18 +5,28 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from .middleware import (
+    get_client_ip, log_security_event, register_failed_login, reset_failed_logins,
+)
 from .serializers import RegisterSerializer, UserSerializer, UserProfileUpdateSerializer, AdminUserSerializer
 
 User = get_user_model()
 
 
 class LoginView(APIView):
-    """Username yoki Email bilan login"""
+    """Username yoki Email bilan login.
+
+    Brute-force himoyasi: throttle (10/min) + 15 daqiqada 10 xatodan keyin
+    IP avtomatik bloklanadi. Barcha urinishlar SecurityLog'ga yoziladi.
+    """
     permission_classes = [permissions.AllowAny]
+    throttle_scope = 'login'
 
     def post(self, request):
         credential = request.data.get('username', '').strip()
         password   = request.data.get('password', '')
+        ip = get_client_ip(request)
+        device = request.META.get('HTTP_USER_AGENT', '')
 
         if not credential or not password:
             return Response({'error': "Username/email va parol kiritish shart"}, status=400)
@@ -29,16 +39,29 @@ class LoginView(APIView):
                 user = authenticate(request, username=user_obj.username, password=password)
             except User.DoesNotExist:
                 pass
-        
+
         # Username bilan qidiruv
         if user is None:
             user = authenticate(request, username=credential, password=password)
 
         if user is None:
-            return Response({'error': "Username/email yoki parol noto'g'ri"}, status=400)
+            remaining = register_failed_login(ip)
+            log_security_event(
+                None, 'login_failed', ip,
+                details=f"Xato login urinishi: {credential[:100]}",
+                device_info=device,
+            )
+            payload = {'error': "Username/email yoki parol noto'g'ri"}
+            if isinstance(remaining, int) and remaining <= 3:
+                payload['error'] += f". Diqqat: {remaining} ta urinish qoldi"
+            return Response(payload, status=400)
 
         if not user.is_active:
+            log_security_event(user, 'login_failed', ip, details="Bloklangan akkauntga kirish urinishi", device_info=device)
             return Response({'error': "Hisobingiz bloklangan"}, status=403)
+
+        reset_failed_logins(ip)
+        log_security_event(user, 'login_success', ip, details="Muvaffaqiyatli kirish", device_info=device)
 
         refresh = RefreshToken.for_user(user)
         return Response({
@@ -51,6 +74,7 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = 'register'
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

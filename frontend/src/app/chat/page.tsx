@@ -11,6 +11,9 @@ import {
   Mic, MicOff, VideoOff, PhoneIncoming, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  getOrCreateKeyPair, deriveSharedKey, encryptText, decryptText, isEncrypted,
+} from '@/lib/crypto';
 
 interface Message {
   id: number;
@@ -40,6 +43,8 @@ interface Participant {
   telegram?: string;
   whatsapp?: string;
   instagram?: string;
+  /** E2E shifrlash uchun ochiq kalit (ECDH P-256, JWK JSON matni) */
+  public_key?: string;
 }
 
 interface Conversation {
@@ -138,6 +143,14 @@ function ChatContent() {
   const docInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+
+  // ── E2E shifrlash holati ─────────────────────────────────────
+  // Maxfiy kalit faqat shu qurilmada saqlanadi; server shifrlangan matnni ko'radi.
+  const myKeyPairRef = useRef<CryptoKeyPair | null>(null);
+  const peerKeyCacheRef = useRef<Map<number, CryptoKey>>(new Map());
+  const e2ePublishedRef = useRef(false);
+  const [decryptedMap, setDecryptedMap] = useState<Record<number, string>>({});
+  const [previewMap, setPreviewMap] = useState<Record<number, string>>({});
 
   // URL'dan kelgan parametrlar (qiymat bo'yicha barqaror — qayta ulanish/loop oldini oladi)
   const convParam = searchParams.get('conv');
@@ -338,6 +351,107 @@ function ChatContent() {
 
   const activeRecipient = activeConv ? getRecipient(activeConv) : null;
 
+  // ── E2E shifrlash yordamchilari ──────────────────────────────
+  // O'z kalit juftligini oladi/yaratadi va ochiq kalitni serverga e'lon qiladi.
+  const userId = user?.id;
+  const ensureMyKeyPair = useCallback(async (): Promise<CryptoKeyPair | null> => {
+    if (!userId) return null;
+    if (myKeyPairRef.current) return myKeyPairRef.current;
+    const res = await getOrCreateKeyPair(userId);
+    if (!res) return null;
+    myKeyPairRef.current = res.keyPair;
+    if (!e2ePublishedRef.current) {
+      e2ePublishedRef.current = true;
+      try {
+        await api.patch('/auth/profile/', { public_key: JSON.stringify(res.publicJwk) });
+      } catch {
+        e2ePublishedRef.current = false;
+      }
+    }
+    return res.keyPair;
+  }, [userId]);
+
+  // Suhbatdosh bilan umumiy AES-GCM kalitni hosil qiladi (peer bo'yicha keshlanadi).
+  const ensureSharedKey = useCallback(async (conv: Conversation | null): Promise<CryptoKey | null> => {
+    if (!conv || !userId) return null;
+    const peer = conv.participants.find((p) => p.id !== userId);
+    if (!peer) return null;
+    const cached = peerKeyCacheRef.current.get(peer.id);
+    if (cached) return cached;
+    if (!peer.public_key) return null;
+    let jwk: JsonWebKey;
+    try {
+      jwk = JSON.parse(peer.public_key);
+    } catch {
+      return null;
+    }
+    const kp = await ensureMyKeyPair();
+    if (!kp) return null;
+    const key = await deriveSharedKey(kp, jwk, peer.id);
+    if (key) peerKeyCacheRef.current.set(peer.id, key);
+    return key;
+  }, [userId, ensureMyKeyPair]);
+
+  // Login bo'lganda kalit juftligini tayyorlab, ochiq kalitni e'lon qilamiz.
+  useEffect(() => {
+    if (isLoggedIn && user?.id) {
+      ensureMyKeyPair();
+    }
+  }, [isLoggedIn, user?.id, ensureMyKeyPair]);
+
+  // Shifrlangan xabarlarni deshifrlash (yakuniy matn decryptedMap'da saqlanadi).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!activeConv || !user?.id) return;
+      const key = await ensureSharedKey(activeConv);
+      if (!key) return;
+      const updates: Record<number, string> = {};
+      for (const m of messages) {
+        if (isEncrypted(m.content) && decryptedMap[m.id] === undefined) {
+          updates[m.id] = await decryptText(m.content, key);
+        }
+      }
+      if (!cancelled && Object.keys(updates).length) {
+        setDecryptedMap((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [messages, activeConv, user?.id, ensureSharedKey, decryptedMap]);
+
+  // Suhbatlar ro'yxatidagi oxirgi xabar ko'rinishini deshifrlash.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) return;
+      const updates: Record<number, string> = {};
+      for (const c of conversations) {
+        const lm = c.last_message;
+        if (lm && isEncrypted(lm.content) && previewMap[c.id] === undefined) {
+          const key = await ensureSharedKey(c);
+          if (key) updates[c.id] = await decryptText(lm.content, key);
+        }
+      }
+      if (!cancelled && Object.keys(updates).length) {
+        setPreviewMap((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [conversations, user?.id, ensureSharedKey, previewMap]);
+
+  // Xabar matnini ko'rsatish uchun (shifrlangan bo'lsa deshifrlangan variant).
+  const displayContent = (msg: Message): string => {
+    if (isEncrypted(msg.content)) return decryptedMap[msg.id] ?? '🔒 ...';
+    return msg.content;
+  };
+
+  const displayPreview = (conv: Conversation): string => {
+    const lm = conv.last_message;
+    if (!lm) return 'Suhbat boshlangan';
+    if (isEncrypted(lm.content)) return previewMap[conv.id] ?? '🔒 Shifrlangan xabar';
+    return lm.content;
+  };
+
   // Auto-scroll messages — faqat chat box ichida, butun sahifani emas
   useEffect(() => {
     const el = chatEndRef.current;
@@ -348,35 +462,48 @@ function ChatContent() {
     }
   }, [messages]);
 
-  // 4. Send Message (WebSocket + HTTP Fallback)
+  // 4. Send Message (E2E shifrlangan matn + WebSocket/HTTP)
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const content = inputMessage.trim();
     if (!content || !activeConv || isSending) return;
 
+    const conv = activeConv;
     setIsSending(true);
     setInputMessage('');
+
+    // E2E: matnni suhbatdosh bilan umumiy kalit yordamida shifrlaymiz.
+    // Server faqat shifrlangan matnni ko'radi va o'qiy olmaydi.
+    let outgoingContent = content;
+    const sharedKey = await ensureSharedKey(conv);
+    if (sharedKey) {
+      try {
+        outgoingContent = await encryptText(content, sharedKey);
+      } catch {
+        outgoingContent = content;
+      }
+    }
 
     // Agar WebSocket ochiq bo'lsa, u orqali yuborish
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({
         action: 'message',
-        conversation_id: activeConv.id,
-        content: content,
+        conversation_id: conv.id,
+        content: outgoingContent,
         message_type: 'text'
       }));
       setIsSending(false);
     } else {
       // WebSocket yo'q yoki uzilgan bo'lsa, HTTP API orqali yuborish
       try {
-        const res = await api.post(`/chat/conversations/${activeConv.id}/send_message/`, {
-          content: content,
+        const res = await api.post(`/chat/conversations/${conv.id}/send_message/`, {
+          content: outgoingContent,
           message_type: 'text'
         });
         const savedMsg = res.data;
         setMessages((prev) => [...prev, savedMsg]);
         setConversations((prev) =>
-          prev.map((c) => (c.id === activeConv.id ? { ...c, last_message: savedMsg } : c))
+          prev.map((c) => (c.id === conv.id ? { ...c, last_message: savedMsg } : c))
         );
       } catch (err) {
         console.error('Error sending message via HTTP:', err);
@@ -937,7 +1064,7 @@ function ChatContent() {
 
                       {/* Last message preview */}
                       <p className="text-[11px] text-[var(--text-3)] truncate mt-0.5">
-                        {conv.last_message ? conv.last_message.content : 'Suhbat boshlangan'}
+                        {conv.last_message ? displayPreview(conv) : 'Suhbat boshlangan'}
                       </p>
                     </div>
 
@@ -1115,7 +1242,7 @@ function ChatContent() {
                                 className="max-w-xs sm:max-w-sm max-h-72 rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity border border-white/10"
                               />
                               {msg.content && msg.content !== msg.file_name && (
-                                <p className="text-xs">{msg.content}</p>
+                                <p className="text-xs">{displayContent(msg)}</p>
                               )}
                             </div>
                           )}
@@ -1129,7 +1256,7 @@ function ChatContent() {
                                 className="max-w-xs sm:max-w-sm max-h-72 rounded-xl bg-black border border-white/10"
                               />
                               {msg.content && msg.content !== msg.file_name && (
-                                <p className="text-xs">{msg.content}</p>
+                                <p className="text-xs">{displayContent(msg)}</p>
                               )}
                             </div>
                           )}
@@ -1141,7 +1268,7 @@ function ChatContent() {
                                 <FileText size={20} className={isMine ? 'text-white' : 'text-blue-500'} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-bold text-xs truncate">{msg.file_name || msg.content || 'Hujjat'}</p>
+                                <p className="font-bold text-xs truncate">{msg.file_name || displayContent(msg) || 'Hujjat'}</p>
                                 {msg.file_size && (
                                   <p className="text-[10px] opacity-75">
                                     {(msg.file_size / 1024).toFixed(1)} KB
@@ -1172,7 +1299,7 @@ function ChatContent() {
                                 </div>
                                 <div>
                                   <p className="font-bold text-xs">Lokatsiya</p>
-                                  <p className="text-[10px] opacity-80">{msg.content || 'Geolokatsiya nuqtasi'}</p>
+                                  <p className="text-[10px] opacity-80">{displayContent(msg) || 'Geolokatsiya nuqtasi'}</p>
                                 </div>
                               </div>
                               {msg.latitude && msg.longitude && (
@@ -1190,7 +1317,7 @@ function ChatContent() {
 
                           {/* Text message */}
                           {(!msg.message_type || msg.message_type === 'text') && (
-                            <p>{msg.content}</p>
+                            <p>{displayContent(msg)}</p>
                           )}
 
                           <div
