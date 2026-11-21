@@ -48,7 +48,16 @@ export default function SecurityCenter() {
   const fetchData = () => {
     setLoading(true);
     api.get('/dashboard/security/')
-      .then(res => setData(res.data))
+      .then(res => {
+        // Javob kutilgan shaklda bo'lmasa ham sahifa ishdan chiqmasin —
+        // har bir ro'yxatni massivga keltiramiz.
+        const payload = res.data ?? {};
+        setData({
+          login_history: Array.isArray(payload.login_history) ? payload.login_history : [],
+          blocked_ips: Array.isArray(payload.blocked_ips) ? payload.blocked_ips : [],
+          user_credentials: Array.isArray(payload.user_credentials) ? payload.user_credentials : [],
+        });
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
