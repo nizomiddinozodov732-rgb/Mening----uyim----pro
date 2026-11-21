@@ -3,11 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.db.models import Prefetch
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 from apps.accounts.serializers import UserSerializer
+from apps.properties.models import PropertyImage, PropertyRating
 
 User = get_user_model()
 
@@ -17,7 +19,29 @@ class ConversationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Conversation.objects.filter(participants=self.request.user).distinct().order_by('-updated_at')
+        qs = (
+            Conversation.objects.filter(participants=self.request.user)
+            .distinct()
+            .select_related('property', 'property__owner')
+            .prefetch_related(
+                'participants',
+                # Oxirgi xabar va o'qilmaganlar sonini hisoblash uchun barcha
+                # xabarlarni bir marta yuklaymiz (N+1 oldini oladi).
+                Prefetch('messages', queryset=Message.objects.select_related('sender').order_by('-created_at')),
+                Prefetch('property__images', queryset=PropertyImage.objects.order_by('-is_primary', 'order')),
+            )
+            .order_by('-updated_at')
+        )
+        user = getattr(self.request, 'user', None)
+        if user is not None and user.is_authenticated:
+            qs = qs.prefetch_related(
+                Prefetch(
+                    'property__ratings',
+                    queryset=PropertyRating.objects.filter(user=user),
+                    to_attr='user_ratings',
+                )
+            )
+        return qs
 
     def create(self, request, *args, **kwargs):
         recipient_id = request.data.get('recipient_id')

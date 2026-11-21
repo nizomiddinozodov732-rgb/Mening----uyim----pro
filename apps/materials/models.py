@@ -17,6 +17,11 @@ class MaterialStore(models.Model):
     status = models.CharField(max_length=20, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+        ]
+
     def __str__(self):
         return self.name
 
@@ -52,6 +57,10 @@ class Material(models.Model):
 
     class Meta:
         ordering = ['-rating', '-created_at']
+        indexes = [
+            models.Index(fields=['status', 'category']),
+            models.Index(fields=['category']),
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.price} so'm"

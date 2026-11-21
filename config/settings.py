@@ -255,6 +255,27 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
+# ── Kesh (caching) ─────────────────────────────────────────
+# Bosh sahifa statistikasi kabi kam o'zgaradigan ma'lumotlar uchun.
+# Production'da ko'p ishchi jarayon (worker) bo'lsa REDIS_URL berish tavsiya etiladi.
+_redis_url = os.environ.get('REDIS_URL')
+if _redis_url:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _redis_url,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'houseshop-cache',
+            'TIMEOUT': 300,
+            'OPTIONS': {'MAX_ENTRIES': 2000},
+        }
+    }
+
 # CORS
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',

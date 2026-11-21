@@ -39,6 +39,11 @@ class Property(models.Model):
     class Meta:
         verbose_name_plural = 'Properties'
         ordering = ['-rating', '-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['property_type']),
+            models.Index(fields=['-created_at']),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.get_property_type_display()}"

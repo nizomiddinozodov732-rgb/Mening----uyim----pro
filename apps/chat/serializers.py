@@ -36,13 +36,24 @@ class ConversationSerializer(serializers.ModelSerializer):
         fields = ['id', 'participants', 'property', 'property_detail', 'last_message', 'unread_count', 'created_at', 'updated_at']
 
     def get_last_message(self, obj):
-        last_msg = obj.messages.order_by('-created_at').first()
+        # View'da `messages` oldindan (-created_at tartibida) yuklanadi — N+1 yo'q.
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'messages' in cache:
+            msgs = cache['messages']
+            last_msg = msgs[0] if msgs else None
+        else:
+            last_msg = obj.messages.order_by('-created_at').first()
         if last_msg:
-            return MessageSerializer(last_msg).data
+            return MessageSerializer(last_msg, context=self.context).data
         return None
 
     def get_unread_count(self, obj):
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.messages.filter(is_read=False).exclude(sender=request.user).count()
-        return 0
+        if not (request and request.user.is_authenticated):
+            return 0
+        uid = request.user.id
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'messages' in cache:
+            # Prefetch qilingan ro'yxatdan Python'da sanaymiz (qo'shimcha so'rovsiz).
+            return sum(1 for m in cache['messages'] if not m.is_read and m.sender_id != uid)
+        return obj.messages.filter(is_read=False).exclude(sender_id=uid).count()

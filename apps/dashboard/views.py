@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework import permissions, status
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Sum, Count, Q
 from apps.properties.models import Property, PropertyImage
@@ -76,31 +77,43 @@ class DashboardStatsView(APIView):
         month_payments = Payment.objects.filter(created_at__gte=month_ago, status='completed')
         month_revenue = float(month_payments.aggregate(total=Sum('amount'))['total'] or 0)
 
-        # Weekly revenue chart (last 7 days)
+        # Weekly revenue chart (last 7 days) — bitta so'rovda kun bo'yicha yig'amiz
         days = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya']
+        week_start = today - timedelta(days=6)
+        daily_revenue = {
+            row['created_at__date']: float(row['total'] or 0)
+            for row in Payment.objects.filter(
+                status='completed', created_at__date__gte=week_start
+            ).values('created_at__date').annotate(total=Sum('amount'))
+        }
         payments_chart = []
         for i in range(6, -1, -1):
             day = today - timedelta(days=i)
-            day_total = float(Payment.objects.filter(
-                created_at__date=day, status='completed'
-            ).aggregate(total=Sum('amount'))['total'] or 0)
             payments_chart.append({
                 "name": days[day.weekday()],
                 "date": day.strftime('%d.%m'),
-                "amount": day_total
+                "amount": daily_revenue.get(day, 0.0),
             })
 
-        # Users by profession
-        profession_stats = []
-        for code, label in User.PROFESSION_CHOICES:
-            count = User.objects.filter(profession=code).count()
-            profession_stats.append({"name": label, "code": code, "count": count})
+        # Users by profession — bitta so'rovda guruhlab olamiz
+        profession_counts = {
+            row['profession']: row['count']
+            for row in User.objects.values('profession').annotate(count=Count('id'))
+        }
+        profession_stats = [
+            {"name": label, "code": code, "count": profession_counts.get(code, 0)}
+            for code, label in User.PROFESSION_CHOICES
+        ]
 
-        # Property type distribution
-        property_type_stats = []
-        for code, label in Property.TYPE_CHOICES:
-            count = Property.objects.filter(property_type=code).count()
-            property_type_stats.append({"name": label, "code": code, "count": count})
+        # Property type distribution — bitta so'rovda guruhlab olamiz
+        property_type_counts = {
+            row['property_type']: row['count']
+            for row in Property.objects.values('property_type').annotate(count=Count('id'))
+        }
+        property_type_stats = [
+            {"name": label, "code": code, "count": property_type_counts.get(code, 0)}
+            for code, label in Property.TYPE_CHOICES
+        ]
 
         # Recent activity (last 10 actions)
         recent_users = User.objects.order_by('-date_joined')[:5]
@@ -884,15 +897,25 @@ class HomeStatsView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        active_properties = Property.objects.filter(status='active').count()
-        total_users = User.objects.filter(is_active=True).count()
-        total_stores = MaterialStore.objects.filter(status='active').count()
-        total_workers = User.objects.filter(profession__in=['builder', 'repairman', 'architect'], is_active=True).count()
+        # Natija kam o'zgaradi — qisqa muddatga keshlaymiz (so'rovlar sonini kamaytiradi).
+        cache_key = 'home_stats_v1'
+        data = cache.get(cache_key)
+        if data is None:
+            # Bitta so'rovda barcha ko'rsatkichlarni hisoblaymiz (filter bilan).
+            user_aggr = User.objects.aggregate(
+                total_users=Count('id', filter=Q(is_active=True)),
+                total_workers=Count(
+                    'id',
+                    filter=Q(is_active=True, profession__in=['builder', 'repairman', 'architect']),
+                ),
+            )
+            data = {
+                "active_properties": Property.objects.filter(status='active').count(),
+                "total_users": user_aggr['total_users'] or 0,
+                "total_stores": MaterialStore.objects.filter(status='active').count(),
+                "total_workers": user_aggr['total_workers'] or 0,
+            }
+            cache.set(cache_key, data, 60)
 
-        return Response({
-            "active_properties": active_properties,
-            "total_users": total_users,
-            "total_stores": total_stores,
-            "total_workers": total_workers,
-        })
+        return Response(data)
 

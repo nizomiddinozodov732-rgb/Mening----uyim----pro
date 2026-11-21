@@ -50,6 +50,10 @@ class MaterialStoreSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_materials_count(self, obj):
+        # View'da annotatsiya qilingan bo'lsa undan foydalanamiz (N+1 yo'q).
+        annotated = getattr(obj, 'materials_count', None)
+        if annotated is not None:
+            return annotated
         return obj.materials.count()
 
 

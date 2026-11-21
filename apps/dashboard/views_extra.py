@@ -100,7 +100,9 @@ class AIMonitoringView(APIView):
 
     def get(self, request):
         # Soxta e'lonlar: narxi 0 yoki rasm yo'q
-        fake_props = Property.objects.filter(Q(price__lte=100) | Q(images__isnull=True)).distinct()[:20]
+        fake_props = Property.objects.select_related('owner').filter(
+            Q(price__lte=100) | Q(images__isnull=True)
+        ).distinct()[:20]
         fake_list = [{"id": p.id, "title": p.title, "price": str(p.price), "reason": "Juda past narx" if p.price <= 100 else "Rasm yo'q", "owner": p.owner.get_full_name()} for p in fake_props]
 
         # Shubhali foydalanuvchilar: yangi + ko'p e'lon
@@ -111,7 +113,7 @@ class AIMonitoringView(APIView):
         # G'ayrioddiy narxlar
         avg_price = Property.objects.filter(status='active').aggregate(a=Avg('price'))['a'] or 0
         if avg_price > 0:
-            unusual = Property.objects.filter(Q(price__gt=avg_price * 5) | Q(price__lt=avg_price * 0.05), status='active')[:10]
+            unusual = Property.objects.select_related('owner').filter(Q(price__gt=avg_price * 5) | Q(price__lt=avg_price * 0.05), status='active')[:10]
         else:
             unusual = Property.objects.none()
         unusual_list = [{"id": p.id, "title": p.title, "price": str(p.price), "avg": str(round(avg_price)), "owner": p.owner.get_full_name()} for p in unusual]
@@ -145,14 +147,28 @@ class RegionStatsView(APIView):
             {"name": "Navoiy", "lat": 40.1003, "lng": 65.3792, "code": "navoiy"},
             {"name": "Qoraqalpog'iston", "lat": 42.4600, "lng": 59.6000, "code": "qoraq"},
         ]
+        # Har bir hudud uchun alohida so'rov yubormaslik uchun barcha
+        # ma'lumotlarni 3 ta so'rovda oldindan yig'amiz, keyin Python'da
+        # hududlarga taqsimlaymiz (70 so'rov -> 3 so'rov).
+        all_props = list(Property.objects.values_list('location', 'status', 'price'))
+        all_workers = list(User.objects.filter(
+            profession__in=['builder', 'repairman']
+        ).values_list('bio', flat=True))
+        all_material_locations = list(
+            Material.objects.values_list('store__location', flat=True)
+        )
+
         for r in regions:
-            props = Property.objects.filter(location__icontains=r['name'][:4])
-            r['houses_sold'] = props.filter(status='sold').count()
-            r['active_listings'] = props.filter(status='active').count()
-            r['avg_price'] = float(props.aggregate(a=Avg('price'))['a'] or 0)
-            workers = User.objects.filter(profession__in=['builder', 'repairman'], bio__icontains=r['name'][:4]).count()
-            r['workers_count'] = workers
-            r['materials_count'] = Material.objects.filter(store__location__icontains=r['name'][:4]).count()
+            key = r['name'][:4]
+            props = [p for p in all_props if key in (p[0] or '')]
+            r['houses_sold'] = sum(1 for p in props if p[1] == 'sold')
+            r['active_listings'] = sum(1 for p in props if p[1] == 'active')
+            prices = [float(p[2]) for p in props if p[2] is not None]
+            r['avg_price'] = (sum(prices) / len(prices)) if prices else 0.0
+            r['workers_count'] = sum(1 for bio in all_workers if key in (bio or ''))
+            r['materials_count'] = sum(
+                1 for loc in all_material_locations if key in (loc or '')
+            )
         return Response(regions)
 
 
@@ -176,7 +192,7 @@ class BusinessAnalyticsView(APIView):
         arch_list = [{"id": u.id, "name": u.get_full_name() or u.username, "rating": u.rating, "rating_count": u.rating_count, "verified": u.is_verified} for u in top_architects]
 
         # Top materiallar
-        top_materials = Material.objects.order_by('-quantity')[:10]
+        top_materials = Material.objects.select_related('store').order_by('-quantity')[:10]
         mat_list = [{"id": m.id, "name": m.name, "category": m.get_category_display(), "price": str(m.price), "quantity": m.quantity, "store": m.store.name} for m in top_materials]
 
         return Response({
@@ -192,22 +208,38 @@ class RevenueCenterView(APIView):
         now = timezone.now()
         today = now.date()
 
+        # Oxirgi ~13 oy uchun to'lovlarni bir marta yuklab, barcha davrlar
+        # (kunlik/haftalik/oylik/jami) bo'yicha Python'da taqsimlaymiz.
+        # Ilgari bu 54 ta so'rov edi — endi 2 ta so'rov.
+        window_start = today - timedelta(days=400)
+        rows = list(
+            Payment.objects.filter(status='completed', created_at__date__gte=window_start)
+            .values('created_at', 'amount')
+        )
+        all_time = float(
+            Payment.objects.filter(status='completed').aggregate(t=Sum('amount'))['t'] or 0
+        )
+
+        def _amt(row):
+            return float(row['amount'] or 0)
+
         # Kunlik (oxirgi 30 kun)
         daily = []
         for i in range(29, -1, -1):
             d = today - timedelta(days=i)
-            amt = float(Payment.objects.filter(created_at__date=d, status='completed').aggregate(t=Sum('amount'))['t'] or 0)
+            amt = sum(_amt(r) for r in rows if r['created_at'].date() == d)
             daily.append({"date": d.strftime('%d.%m'), "amount": amt})
 
         # Haftalik (oxirgi 12 hafta)
         weekly = []
         for i in range(11, -1, -1):
-            start = today - timedelta(weeks=i+1)
+            start = today - timedelta(weeks=i + 1)
             end = today - timedelta(weeks=i)
-            amt = float(Payment.objects.filter(created_at__date__gte=start, created_at__date__lt=end, status='completed').aggregate(t=Sum('amount'))['t'] or 0)
-            weekly.append({"week": f"H{12-i}", "amount": amt})
+            amt = sum(_amt(r) for r in rows if start <= r['created_at'].date() < end)
+            weekly.append({"week": f"H{12 - i}", "amount": amt})
 
         # Oylik (oxirgi 12 oy)
+        months_uz = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
         monthly = []
         for i in range(11, -1, -1):
             m = now.month - i
@@ -215,18 +247,19 @@ class RevenueCenterView(APIView):
             while m <= 0:
                 m += 12
                 y -= 1
-            amt = float(Payment.objects.filter(created_at__month=m, created_at__year=y, status='completed').aggregate(t=Sum('amount'))['t'] or 0)
-            months_uz = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
-            monthly.append({"month": months_uz[m-1], "amount": amt})
+            amt = sum(_amt(r) for r in rows if r['created_at'].year == y and r['created_at'].month == m)
+            monthly.append({"month": months_uz[m - 1], "amount": amt})
 
-        total = float(Payment.objects.filter(status='completed').aggregate(t=Sum('amount'))['t'] or 0)
-        today_rev = float(Payment.objects.filter(created_at__date=today, status='completed').aggregate(t=Sum('amount'))['t'] or 0)
-        week_rev = float(Payment.objects.filter(created_at__date__gte=today-timedelta(days=7), status='completed').aggregate(t=Sum('amount'))['t'] or 0)
-        month_rev = float(Payment.objects.filter(created_at__date__gte=today-timedelta(days=30), status='completed').aggregate(t=Sum('amount'))['t'] or 0)
+        today_rev = float(
+            Payment.objects.filter(created_at__date=today, status='completed')
+            .aggregate(t=Sum('amount'))['t'] or 0
+        )
+        week_rev = sum(_amt(r) for r in rows if r['created_at'].date() >= today - timedelta(days=7))
+        month_rev = sum(_amt(r) for r in rows if r['created_at'].date() >= today - timedelta(days=30))
 
         return Response({
             "daily": daily, "weekly": weekly, "monthly": monthly,
-            "totals": {"today": today_rev, "week": week_rev, "month": month_rev, "all_time": total}
+            "totals": {"today": today_rev, "week": week_rev, "month": month_rev, "all_time": all_time}
         })
 
 
@@ -331,7 +364,12 @@ class ConstructionProjectsView(APIView):
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
-        projects = ConstructionProject.objects.select_related('architect', 'builder', 'material_seller', 'created_by').all()
+        projects = (
+            ConstructionProject.objects
+            .select_related('architect', 'builder', 'material_seller', 'created_by')
+            .annotate(workers_total=Count('workers'))
+            .all()
+        )
         data = []
         for p in projects:
             data.append({
@@ -339,7 +377,7 @@ class ConstructionProjectsView(APIView):
                 "architect": p.architect.get_full_name() if p.architect else None,
                 "builder": p.builder.get_full_name() if p.builder else None,
                 "material_seller": p.material_seller.get_full_name() if p.material_seller else None,
-                "workers_count": p.workers.count(),
+                "workers_count": p.workers_total,
                 "budget": str(p.budget), "spent": str(p.spent),
                 "location": p.location, "status": p.status,
                 "status_display": p.get_status_display(),

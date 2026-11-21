@@ -10,6 +10,9 @@ class Conversation(models.Model):
 
     class Meta:
         ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['-updated_at']),
+        ]
 
     def __str__(self):
         return f"Chat {self.id} ({self.participants.count()} participants)"
@@ -36,6 +39,10 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['conversation', '-created_at']),
+            models.Index(fields=['conversation', 'is_read']),
+        ]
 
     def __str__(self):
         return f"Message from {self.sender.username} in Chat {self.conversation.id} ({self.message_type})"

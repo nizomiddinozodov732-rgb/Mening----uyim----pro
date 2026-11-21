@@ -41,17 +41,20 @@ class PropertyListSerializer(serializers.ModelSerializer):
 
     def get_user_rating(self, obj):
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            # Agar prefetch qilingan bo'lsa yoki tezkor tekshiruv
-            rating_obj = getattr(obj, '_user_rating_cache', None)
-            if rating_obj is not None:
-                return rating_obj
-            ur = obj.ratings.filter(user=request.user).first()
-            return ur.stars if ur else None
-        return None
+        if not (request and request.user.is_authenticated):
+            return None
+        # `user_ratings` — view'da Prefetch(to_attr) orqali tayyorlanadi (N+1 yo'q)
+        cached = getattr(obj, 'user_ratings', None)
+        if cached is not None:
+            return cached[0].stars if cached else None
+        ur = obj.ratings.filter(user=request.user).first()
+        return ur.stars if ur else None
 
     def get_primary_image(self, obj):
-        img = obj.images.filter(is_primary=True).first() or obj.images.first()
+        # Prefetch keshidan foydalanamiz — har bir e'lon uchun qo'shimcha
+        # so'rov yubormaslik uchun (N+1 muammosini oldini oladi).
+        images = obj.images.all()
+        img = next((i for i in images if i.is_primary), None) or next(iter(images), None)
         if img:
             image_str = str(img.image)
             if image_str.startswith('http'):
@@ -86,9 +89,11 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
     def get_user_rating(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            ur = obj.ratings.filter(user=request.user).first()
-            if ur:
-                return {'id': ur.id, 'stars': ur.stars, 'comment': ur.comment}
+            # Prefetch qilingan `ratings` ro'yxatidan topamiz (qo'shimcha so'rovsiz)
+            uid = request.user.id
+            for r in obj.ratings.all():
+                if r.user_id == uid:
+                    return {'id': r.id, 'stars': r.stars, 'comment': r.comment}
         return None
 
 

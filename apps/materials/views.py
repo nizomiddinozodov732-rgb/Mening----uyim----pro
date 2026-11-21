@@ -3,6 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.decorators import action
+from django.db.models import Count, Prefetch
 from .models import MaterialStore, Material, MaterialRating
 from .serializers import (
     MaterialStoreSerializer,
@@ -14,6 +15,23 @@ from .serializers import (
 
 class MaterialStoreViewSet(viewsets.ModelViewSet):
     queryset = MaterialStore.objects.filter(status='active')
+
+    def get_queryset(self):
+        # `materials_count` ni annotatsiya qilamiz (serializerda N+1 oldini oladi)
+        # va aniq tartiblash (pagination barqarorligi uchun).
+        qs = (
+            MaterialStore.objects.filter(status='active')
+            .select_related('owner')
+            .annotate(materials_count=Count('materials'))
+            .order_by('-rating', '-created_at')
+        )
+        if self.action == 'retrieve':
+            # Batafsil ko'rinishda do'kon materiallari va ularning do'konini
+            # oldindan yuklaymiz (nested serializerda N+1 oldini oladi).
+            qs = qs.prefetch_related(
+                Prefetch('materials', queryset=Material.objects.select_related('store', 'store__owner'))
+            )
+        return qs
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -127,7 +145,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
         return obj
 
     def get_queryset(self):
-        qs = Material.objects.filter(status='available')
+        qs = Material.objects.filter(status='available').select_related('store', 'store__owner')
         category = self.request.query_params.get('category')
         store = self.request.query_params.get('store')
         if category:

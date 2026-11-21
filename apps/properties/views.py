@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from django.http import Http404
+from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Property, PropertyImage, PropertyRating
 from .serializers import (
@@ -103,7 +104,22 @@ class PropertyViewSet(viewsets.ModelViewSet):
         else:
             qs = qs.order_by('-rating', '-created_at')
 
-        return qs.select_related('owner').prefetch_related('images', 'ratings')
+        # Rasm va reytinglarni oldindan yuklash (N+1 muammosini bartaraf etadi).
+        images_prefetch = Prefetch('images', queryset=PropertyImage.objects.order_by('-is_primary', 'order'))
+        qs = qs.select_related('owner').prefetch_related(images_prefetch)
+        user = getattr(self.request, 'user', None)
+        if self.action == 'list':
+            # Ro'yxatda faqat joriy foydalanuvchining reytingi kerak (yengil).
+            if user is not None and user.is_authenticated:
+                qs = qs.prefetch_related(
+                    Prefetch('ratings', queryset=PropertyRating.objects.filter(user=user), to_attr='user_ratings')
+                )
+        else:
+            # Batafsil ko'rinishda barcha reytinglar kerak (serializer to'liq ro'yxatni chiqaradi).
+            qs = qs.prefetch_related(
+                Prefetch('ratings', queryset=PropertyRating.objects.select_related('user').order_by('-created_at'))
+            )
+        return qs
 
     def _parse_number(self, key, cast=float):
         """Query parametrni xavfsiz songa aylantiradi; noto'g'ri bo'lsa None qaytaradi."""
@@ -119,13 +135,32 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def my_properties(self, request):
         if not request.user.is_authenticated:
             return Response({'error': 'Login qiling'}, status=401)
-        props = Property.objects.filter(owner=request.user)
+        props = (
+            Property.objects.filter(owner=request.user)
+            .select_related('owner')
+            .prefetch_related(
+                Prefetch('images', queryset=PropertyImage.objects.order_by('-is_primary', 'order')),
+                Prefetch('ratings', queryset=PropertyRating.objects.filter(user=request.user), to_attr='user_ratings'),
+            )
+        )
         serializer = PropertyListSerializer(props, many=True, context={'request': request})
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def featured(self, request):
-        props = Property.objects.filter(status='active').order_by('-rating', '-views_count')[:8]
+        prefetches = [
+            Prefetch('images', queryset=PropertyImage.objects.order_by('-is_primary', 'order')),
+        ]
+        if request.user.is_authenticated:
+            prefetches.append(
+                Prefetch('ratings', queryset=PropertyRating.objects.filter(user=request.user), to_attr='user_ratings')
+            )
+        props = (
+            Property.objects.filter(status='active')
+            .select_related('owner')
+            .prefetch_related(*prefetches)
+            .order_by('-rating', '-views_count')[:8]
+        )
         serializer = PropertyListSerializer(props, many=True, context={'request': request})
         return Response(serializer.data)
 
