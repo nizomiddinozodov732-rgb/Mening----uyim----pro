@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bosh sahifa — Mening Uyim (maket)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script>
+  try { if (localStorage.getItem('mock-theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  function toggleTheme(){const r=document.documentElement;r.classList.toggle('dark');try{localStorage.setItem('mock-theme',r.classList.contains('dark')?'dark':'light')}catch(e){}}
+  function openDrawer(){document.getElementById('wdrawer').classList.add('open');document.getElementById('wscrim').classList.add('open');}
+  function closeDrawer(){document.getElementById('wdrawer').classList.remove('open');document.getElementById('wscrim').classList.remove('open');}
+  function toggleGroup(el){el.parentElement.classList.toggle('open');}
+</script>
+
+<style>
+  /* Faqat ushbu sahifaga xos joylashuv */
+  .hero { background: linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 45%,#4f46e5 100%); border-radius: var(--r-xl); padding: 48px 32px; color:#fff; position:relative; overflow:hidden; }
+  .hero::after { content:''; position:absolute; right:-80px; top:-80px; width:320px; height:320px; border-radius:50%; background:rgba(255,255,255,.08); }
+  .hero > * { position:relative; z-index:1; }
+  .searchbar { background:var(--surface); border-radius: var(--r-lg); padding:8px; display:flex; gap:8px; box-shadow: var(--shadow-xl); max-width:720px; margin:28px auto 0; }
+  .searchbar .input, .searchbar .select { border:0; height:48px; }
+  .searchbar .select { max-width:160px; }
+  .cat-grid { display:grid; grid-template-columns: repeat(4,1fr); gap: var(--sp-4); }
+  .cat { display:flex; flex-direction:column; align-items:center; gap:10px; padding:24px 12px; border-radius: var(--r-lg); background: var(--surface); border:1px solid var(--border); box-shadow: var(--shadow-sm); transition:.2s; }
+  .cat:hover { transform:translateY(-3px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+  .cat-ico { width:48px; height:48px; border-radius: var(--r-md); background: var(--primary-l); color: var(--primary); display:flex; align-items:center; justify-content:center; }
+  @media (max-width:1024px){ .cat-grid { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width:640px){
+    .hero { padding:24px 20px; }
+    .searchbar { flex-direction:column; margin-top:20px; }
+    .searchbar .select { max-width:none; }
+  }
+</style>
+
+<!-- ══ NAVBAR — mobil drawer bilan bir xil guruhlangan tuzilma ══ -->
+<header class="navbar">
+  <div class="wrap navbar-inner">
+    <a href="index.html" class="center g2">
+      <span style="width:34px;height:34px;border-radius:var(--r-md);background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:#fff">⌂</span>
+      <span class="t-h3 gradient-text">Mening Uyim</span>
+      <span class="badge badge-primary desk-only">PRO</span>
+    </a>
+
+    <nav class="nav-links desk-only" aria-label="Asosiy navigatsiya">
+      <a class="nav-link active" href="home.html" aria-current="page">Bosh sahifa</a>
+
+      <div class="nav-menu">
+        <button class="nav-link" aria-haspopup="true">Ko'chmas mulk ▾</button>
+        <div class="nav-dropdown">
+          <a href="properties.html">Sotib olish</a>
+          <a href="properties.html">Ijara</a>
+          <a href="properties.html">Hovli / Kottedj</a>
+          <a href="properties.html">Yer maydoni</a>
+        </div>
+      </div>
+
+      <div class="nav-menu">
+        <button class="nav-link" aria-haspopup="true">Xizmatlar ▾</button>
+        <div class="nav-dropdown">
+          <a href="#">Ustalar</a>
+          <a href="#">Arxitektorlar</a>
+          <a href="#">Qurilish materiallari</a>
+        </div>
+      </div>
+
+      <a class="nav-link" href="#">Kalkulyator</a>
+    </nav>
+
+    <div class="center g2">
+      <a class="btn btn-primary btn-sm desk-only" href="#">+ E'lon joylash</a>
+      <a class="icon-btn icon-btn-outline" href="#" aria-label="Sevimlilar">♡</a>
+      <a class="icon-btn icon-btn-outline" href="chat.html" aria-label="Xabarlar">✉</a>
+      <button class="icon-btn icon-btn-outline" onclick="toggleTheme()" aria-label="Tema">◐</button>
+      <a href="#" class="center g2 desk-only" style="border:1px solid var(--border);border-radius:var(--r-md);padding:4px 10px 4px 4px">
+        <span class="avatar avatar-sm">AK</span><span class="t-cap semi">Aziz</span>
+      </a>
+      <button class="icon-btn icon-btn-outline only-lg" onclick="openDrawer()" aria-label="Menyu" aria-expanded="false">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ YON DRAWER (≤1024px) — mobil maketdagidek guruhlangan ══ -->
+<div class="wscrim" id="wscrim" onclick="closeDrawer()"></div>
+<aside class="wdrawer" id="wdrawer" aria-label="Mobil navigatsiya">
+  <div class="between" style="padding:14px 16px;border-bottom:1px solid var(--border)">
+    <span class="center g3">
+      <span class="avatar">AK</span>
+      <span><span class="semi t-cap" style="display:block">Aziz Karimov</span><span class="t-micro muted-2">+998 90 ••• 45 67</span></span>
+    </span>
+    <button class="icon-btn" onclick="closeDrawer()" aria-label="Yopish">✕</button>
+  </div>
+  <nav class="grow" style="overflow-y:auto;padding:8px 0">
+    <a class="wgroup-head active" href="home.html">Bosh sahifa</a>
+    <div class="wgroup open">
+      <button class="wgroup-head" onclick="toggleGroup(this)" aria-expanded="true">Ko'chmas mulk <span class="chev">›</span></button>
+      <div class="wsub">
+        <a href="properties.html">Sotib olish</a>
+        <a href="properties.html">Ijara</a>
+        <a href="properties.html">Hovli / Kottedj</a>
+        <a href="properties.html">Yer maydoni</a>
+      </div>
+    </div>
+    <div class="wgroup">
+      <button class="wgroup-head" onclick="toggleGroup(this)" aria-expanded="false">Xizmatlar <span class="chev">›</span></button>
+      <div class="wsub">
+        <a href="#">Ustalar</a>
+        <a href="#">Arxitektorlar</a>
+        <a href="#">Qurilish materiallari</a>
+      </div>
+    </div>
+    <a class="wgroup-head" href="#">Kalkulyator</a>
+    <a class="wgroup-head" href="#">Yangiliklar</a>
+    <a class="wgroup-head" href="chat.html">Xabarlar <span class="badge badge-danger">3</span></a>
+  </nav>
+  <div style="padding:12px;border-top:1px solid var(--border)">
+    <a class="btn btn-primary btn-block" href="#">+ E'lon joylash</a>
+  </div>
+</aside>
+
+<main class="wrap mt-6">
+
+  <!-- ══ HERO — mobil hero bilan bir xil vizual til ══ -->
+  <section class="hero anim-up">
+    <span class="badge" style="background:rgba(255,255,255,.15);color:#fff">12 000+ tekshirilgan e'lon</span>
+    <h1 class="t-display mt-4" style="max-width:640px">Orzuingizdagi uyni bir joydan toping</h1>
+    <p class="mt-2" style="opacity:.85;max-width:560px">Ko'chmas mulk, qurilish materiallari, ustalar va arxitektorlar — barchasi Mening Uyim platformasida.</p>
+
+    <div class="searchbar">
+      <select class="select" aria-label="Turi"><option>Barcha turlar</option><option>Kvartira</option><option>Hovli</option><option>Yer</option></select>
+      <input class="input grow" placeholder="Hudud, tuman yoki kalit so'z..." aria-label="Qidiruv">
+      <button class="btn btn-primary btn-lg">Qidirish</button>
+    </div>
+
+    <div class="wrapx g2 mt-4">
+      <span class="badge" style="background:rgba(255,255,255,.12);color:#fff">Kvartira</span>
+      <span class="badge" style="background:rgba(255,255,255,.12);color:#fff">Hovli</span>
+      <span class="badge" style="background:rgba(255,255,255,.12);color:#fff">Yer</span>
+      <span class="badge" style="background:rgba(255,255,255,.12);color:#fff">Ofis</span>
+    </div>
+  </section>
+
+  <!-- ══ STATISTIKA ══ -->
+  <section class="grid g-4 mt-6" aria-label="Statistika">
+    <div class="card tc pad-4"><p class="t-h1" style="color:var(--primary)">12 000+</p><p class="t-cap muted">Faol e'lonlar</p></div>
+    <div class="card tc pad-4"><p class="t-h1" style="color:var(--primary)">3 400+</p><p class="t-cap muted">Ishonchli sotuvchilar</p></div>
+    <div class="card tc pad-4"><p class="t-h1" style="color:var(--primary)">850+</p><p class="t-cap muted">Usta va arxitektor</p></div>
+    <div class="card tc pad-4"><p class="t-h1" style="color:var(--primary)">24/7</p><p class="t-cap muted">Qo'llab-quvvatlash</p></div>
+  </section>
+
+  <!-- ══ KATEGORIYALAR ══ -->
+  <section class="mt-8">
+    <h2 class="t-h1 mb-4">Nimadan boshlaymiz?</h2>
+    <div class="cat-grid">
+      <a class="cat" href="properties.html"><span class="cat-ico">⌂</span><strong class="t-h3">Ko'chmas mulk</strong><span class="t-cap muted-2 tc">Sotib olish / ijara</span></a>
+      <a class="cat" href="#"><span class="cat-ico">▤</span><strong class="t-h3">Materiallar</strong><span class="t-cap muted-2 tc">Qurilish mollari</span></a>
+      <a class="cat" href="#"><span class="cat-ico">⚒</span><strong class="t-h3">Ustalar</strong><span class="t-cap muted-2 tc">Ta'mirlash xizmati</span></a>
+      <a class="cat" href="#"><span class="cat-ico">✎</span><strong class="t-h3">Arxitektorlar</strong><span class="t-cap muted-2 tc">Loyiha va dizayn</span></a>
+    </div>
+  </section>
+
+  <!-- ══ TAVSIYA ETILGAN E'LONLAR — kartalar barcha sahifalarda bir xil tuzilgan ══ -->
+  <section class="mt-8">
+    <div class="between wrapx g3 mb-4">
+      <h2 class="t-h1">Tavsiya etilgan e'lonlar</h2>
+      <a class="btn btn-outline btn-sm" href="properties.html">Barchasini ko'rish →</a>
+    </div>
+
+    <div class="grid g-3">
+      <article class="card p-0 card-hover" style="overflow:hidden">
+        <div class="media" style="height:180px">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,#93c5fd,#3b82f6)"></div>
+          <span class="badge badge-success media-tag">Sotiladi</span>
+          <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+        </div>
+        <div class="pad-4">
+          <div class="between">
+            <span class="t-cap muted-2">Chilonzor, Toshkent</span>
+            <span class="badge badge-primary">Kvartira</span>
+          </div>
+          <h3 class="t-h3 mt-2">3 xonali kvartira, 78 m²</h3>
+          <div class="wrapx g2 mt-2">
+            <span class="badge">3 xona</span><span class="badge">78 m²</span><span class="badge">3/9 qavat</span>
+          </div>
+          <div class="between mt-3">
+            <span class="prop-price" style="color:var(--primary)">78 000 $</span>
+            <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.8</span></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="card p-0 card-hover" style="overflow:hidden">
+        <div class="media" style="height:180px">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,#fca5a5,#ef4444)"></div>
+          <span class="badge badge-warning media-tag">Ijara</span>
+          <button class="media-fav" aria-label="Sevimlilarga qo'shish">♥</button>
+        </div>
+        <div class="pad-4">
+          <div class="between">
+            <span class="t-cap muted-2">Yunusobod, Toshkent</span>
+            <span class="badge badge-primary">Hovli</span>
+          </div>
+          <h3 class="t-h3 mt-2">4 xonali hovli, 200 m²</h3>
+          <div class="wrapx g2 mt-2">
+            <span class="badge">4 xona</span><span class="badge">200 m²</span><span class="badge">2 qavat</span>
+          </div>
+          <div class="between mt-3">
+            <span class="prop-price" style="color:var(--primary)">1 200 $<span class="t-cap muted-2">/oy</span></span>
+            <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.5</span></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="card p-0 card-hover" style="overflow:hidden">
+        <div class="media" style="height:180px">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,#6ee7b7,#10b981)"></div>
+          <span class="badge badge-success media-tag">Sotiladi</span>
+          <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+        </div>
+        <div class="pad-4">
+          <div class="between">
+            <span class="t-cap muted-2">Qibray, Toshkent vil.</span>
+            <span class="badge badge-primary">Yer</span>
+          </div>
+          <h3 class="t-h3 mt-2">10 sotix yer maydoni</h3>
+          <div class="wrapx g2 mt-2">
+            <span class="badge">10 sotix</span><span class="badge">Hujjatlangan</span>
+          </div>
+          <div class="between mt-3">
+            <span class="prop-price" style="color:var(--primary)">45 000 $</span>
+            <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">5.0</span></span>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ══ QANDAY ISHLAYDI ══ -->
+  <section class="mt-8">
+    <h2 class="t-h1 mb-4">Qanday ishlaydi?</h2>
+    <div class="grid g-3">
+      <div class="card"><span class="badge badge-primary mb-4">1-qadam</span><h3 class="t-h3 mt-2">Ro'yxatdan o'ting</h3><p class="t-cap muted mt-2">Telefon raqam orqali 30 soniyada.</p></div>
+      <div class="card"><span class="badge badge-primary mb-4">2-qadam</span><h3 class="t-h3 mt-2">Qidirib toping</h3><p class="t-cap muted mt-2">Filtrlar va xarita orqali mos variantni tanlang.</p></div>
+      <div class="card"><span class="badge badge-primary mb-4">3-qadam</span><h3 class="t-h3 mt-2">Bog'laning</h3><p class="t-cap muted mt-2">Chat yoki qo'ng'iroq orqali darhol muloqot qiling.</p></div>
+    </div>
+  </section>
+
+  <!-- ══ CTA ══ -->
+  <section class="card mt-8 pad-6" style="background:linear-gradient(135deg,var(--primary),var(--accent));border:0;color:#fff;text-align:center">
+    <h2 class="t-h1">E'loningizni bugun joylashtiring</h2>
+    <p class="mt-2" style="opacity:.9">Minglab xaridorlarga yetib boring. Birinchi e'lon bepul.</p>
+    <a class="btn btn-lg mt-4" href="#" style="background:#fff;color:var(--primary)">Boshlash</a>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap" style="padding-top:40px;padding-bottom:32px">
+    <div class="grid g-4">
+      <div>
+        <p class="t-h3 gradient-text mb-2">Mening Uyim</p>
+        <p class="t-cap muted-2">O'zbekistondagi ko'chmas mulk va qurilish platformasi.</p>
+      </div>
+      <div><p class="t-cap upper muted-2 mb-2">Kategoriyalar</p><a class="footer-link" href="properties.html">Ko'chmas mulk</a><a class="footer-link" href="#">Materiallar</a><a class="footer-link" href="#">Ustalar</a></div>
+      <div><p class="t-cap upper muted-2 mb-2">Kompaniya</p><a class="footer-link" href="#">Biz haqimizda</a><a class="footer-link" href="#">Yangiliklar</a><a class="footer-link" href="#">Aloqa</a></div>
+      <div><p class="t-cap upper muted-2 mb-2">Yordam</p><a class="footer-link" href="#">Savol-javob</a><a class="footer-link" href="#">Maxfiylik</a><a class="footer-link" href="#">Shartlar</a></div>
+    </div>
+    <div class="hr mt-6 mb-4"></div>
+    <p class="t-micro muted-2">© 2026 Mening Uyim. Barcha huquqlar himoyalangan.</p>
+  </div>
+</footer>
+
+<!-- ══ PASTKI TAB PANEL (≤640px) ══ -->
+<nav class="wtabbar" aria-label="Asosiy navigatsiya">
+  <a class="wtab active" href="home.html" aria-current="page"><span class="wtab-ico">⌂</span>Bosh sahifa</a>
+  <a class="wtab" href="properties.html"><span class="wtab-ico">⌕</span>Qidiruv</a>
+  <a class="wtab" href="#"><span class="wtab-ico">♡</span>Sevimli</a>
+  <a class="wtab" href="chat.html"><span class="wtab-ico">✉</span>Chat<span class="wtab-badge">3</span></a>
+  <a class="wtab" href="#"><span class="wtab-ico">◉</span>Profil</a>
+</nav>
+</body>
+</html>

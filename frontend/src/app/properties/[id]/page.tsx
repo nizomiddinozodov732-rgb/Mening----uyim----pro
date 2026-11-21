@@ -6,13 +6,14 @@ import { api, useStore } from '@/store/useStore';
 import {
   MapPin, Bed, Bath, Expand, MessageSquare, PhoneCall, Video, Star,
   ChevronLeft, ShieldCheck, Sparkles, CheckCircle2, AlertCircle, Trash2,
-  Eye, Calendar, Home, AlertTriangle
+  Eye, Calendar, Home, AlertTriangle, Pencil
 } from 'lucide-react';
 import Link from 'next/link';
 import RatingStars from '@/components/RatingStars';
 import WishlistButton from '@/components/WishlistButton';
 import RatingSection from '@/components/RatingSection';
 import ReportModal from '@/components/ReportModal';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal';
 
 interface RatingItem {
   id: number;
@@ -76,6 +77,12 @@ export default function PropertyDetail() {
   const [rateError,   setRateError]   = useState<string | null>(null);
   const [reportOpen,  setReportOpen]  = useState(false);
 
+  /* ── O'chirish ─────────────────────────────────────────── */
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting,   setDeleting]   = useState(false);
+  const [deleteErr,  setDeleteErr]  = useState<string | null>(null);
+  const [deleted,    setDeleted]    = useState(false);
+
   const fetchDetail = async () => {
     try {
       const res = await api.get(`/properties/${id}/`);
@@ -138,6 +145,32 @@ export default function PropertyDetail() {
     } catch (err) { console.error(err); }
   };
 
+  /* ── E'lonni o'chirish (faqat egasi/admin) ─────────────── */
+  const handleDelete = async () => {
+    if (!property) return;
+    setDeleting(true); setDeleteErr(null);
+    try {
+      await api.delete(`/properties/${property.id}/`);
+      setDeleteOpen(false);
+      setDeleted(true);
+      setTimeout(() => router.push('/properties'), 1600);
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { error?: string; detail?: string } } };
+      const s = e.response?.status;
+      if (s === 403) {
+        setDeleteErr("Bu e'lonni o'chirish huquqingiz yo'q.");
+      } else if (s === 404) {
+        setDeleteErr("E'lon topilmadi. Balki allaqachon o'chirilgan.");
+      } else if (s === 401) {
+        setDeleteErr("Sessiya muddati tugagan. Qaytadan tizimga kiring.");
+      } else {
+        setDeleteErr(e.response?.data?.error || e.response?.data?.detail || "E'lonni o'chirishda xatolik yuz berdi.");
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   /* ── Loading ────────────────────────────────────────────── */
   if (loading) return (
     <div className="flex flex-col gap-6 py-6">
@@ -158,6 +191,7 @@ export default function PropertyDetail() {
   );
 
   const isOwner  = user?.id === property.owner.id;
+  const canManage = !!user && (isOwner || user.is_admin || user.is_super_admin);
   const dispStars = hoveredStars ?? rateStars;
   const fallback  = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800';
 
@@ -320,6 +354,27 @@ export default function PropertyDetail() {
         {/* ── Right sidebar ── */}
         <div className="flex flex-col gap-5">
           <div className="card rounded-2xl p-6 flex flex-col gap-5 border border-[var(--border)]">
+
+            {/* E'lon egasi uchun boshqaruv */}
+            {canManage && (
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 flex flex-col gap-2">
+                <p className="text-xs font-bold text-blue-700 dark:text-blue-400">
+                  {isOwner ? "Bu sizning e'loningiz" : "Admin boshqaruvi"}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link href={`/properties/${property.id}/edit`}
+                    className="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                    <Pencil size={13} /> Tahrirlash
+                  </Link>
+                  <button type="button"
+                    onClick={() => { setDeleteErr(null); setDeleteOpen(true); }}
+                    className="py-2.5 rounded-xl bg-white dark:bg-transparent border border-rose-300 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                    <Trash2 size={13} /> O&apos;chirish
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Price */}
             <div>
               <p className="text-xs text-[var(--text-3)] font-semibold uppercase mb-1">Narx</p>
@@ -404,6 +459,31 @@ export default function PropertyDetail() {
         targetTitle={property.title}
         accusedId={property.owner.id}
       />
+
+      {/* Delete confirmation */}
+      <ConfirmDeleteModal
+        isOpen={deleteOpen}
+        onClose={() => { if (!deleting) { setDeleteOpen(false); setDeleteErr(null); } }}
+        onConfirm={handleDelete}
+        title="E'lonni o'chirish"
+        message={`"${property.title}" e'loni butunlay o'chiriladi. Bu amalni qaytarib bo'lmaydi.`}
+        confirmLabel="Ha, o'chirish"
+        loading={deleting}
+        error={deleteErr}
+      />
+
+      {/* Delete success overlay */}
+      {deleted && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm rounded-3xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl p-8 flex flex-col items-center text-center gap-3">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center border border-emerald-500/25">
+              <CheckCircle2 size={34} />
+            </div>
+            <h3 className="text-lg font-extrabold text-[var(--text)]">E&apos;lon o&apos;chirildi</h3>
+            <p className="text-sm text-[var(--text-3)]">E&apos;lonlar ro&apos;yxatiga yo&apos;naltirilmoqda...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

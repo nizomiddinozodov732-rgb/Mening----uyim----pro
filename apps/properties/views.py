@@ -1,11 +1,13 @@
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
+from django.http import Http404
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Property, PropertyImage, PropertyRating
 from .serializers import (
     PropertyListSerializer, PropertyDetailSerializer, PropertyCreateSerializer,
-    PropertyRatingSerializer
+    PropertyUpdateSerializer, PropertyRatingSerializer
 )
 
 
@@ -20,7 +22,9 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return PropertyListSerializer
-        if self.action in ['create', 'update', 'partial_update']:
+        if self.action in ['update', 'partial_update']:
+            return PropertyUpdateSerializer
+        if self.action == 'create':
             return PropertyCreateSerializer
         return PropertyDetailSerializer
 
@@ -29,8 +33,25 @@ class PropertyViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
+    def _can_modify(self, obj):
+        user = self.request.user
+        return bool(
+            user.is_authenticated
+            and (user.is_admin or user.is_super_admin or obj.owner_id == user.id)
+        )
+
+    def get_object(self):
+        obj = super().get_object()
+        is_owner = self._can_modify(obj)
+        # Faqat egasi (yoki admin) tahrirlashi/o'chirishi mumkin
+        if self.action in ('update', 'partial_update', 'destroy') and not is_owner:
+            raise PermissionDenied("Bu e'lonni tahrirlash yoki o'chirish huquqingiz yo'q.")
+        # Nofaol (yashirin) e'lonni faqat egasi yoki admin ko'ra oladi
+        if self.action == 'retrieve' and obj.status != 'active' and not is_owner:
+            raise Http404("E'lon topilmadi.")
+        return obj
+
     def perform_create(self, serializer):
-        from rest_framework.exceptions import PermissionDenied
         user = self.request.user
         if user.profession == 'customer':
             raise PermissionDenied("Oddiy mijozlar e'lon joylay olmaydi. Faqat mutaxassislar qidirishingiz mumkin.")
@@ -51,27 +72,27 @@ class PropertyViewSet(viewsets.ModelViewSet):
         prop_type = self.request.query_params.get('type')
         if prop_type:
             qs = qs.filter(property_type=prop_type)
-        # Filter by price range
-        min_price = self.request.query_params.get('min_price')
-        max_price = self.request.query_params.get('max_price')
-        if min_price:
+        # Filter by price range (noto'g'ri qiymatlar e'tiborsiz qoldiriladi)
+        min_price = self._parse_number('min_price')
+        max_price = self._parse_number('max_price')
+        if min_price is not None:
             qs = qs.filter(price__gte=min_price)
-        if max_price:
+        if max_price is not None:
             qs = qs.filter(price__lte=max_price)
         # Filter by bedrooms
-        bedrooms = self.request.query_params.get('bedrooms')
-        if bedrooms:
+        bedrooms = self._parse_number('bedrooms', int)
+        if bedrooms is not None:
             qs = qs.filter(bedrooms__gte=bedrooms)
         # Filter by area
-        min_area = self.request.query_params.get('min_area')
-        max_area = self.request.query_params.get('max_area')
-        if min_area:
+        min_area = self._parse_number('min_area')
+        max_area = self._parse_number('max_area')
+        if min_area is not None:
             qs = qs.filter(area__gte=min_area)
-        if max_area:
+        if max_area is not None:
             qs = qs.filter(area__lte=max_area)
-        # Only active by default
+        # Only active by default (tahrirlash/o'chirish/ko'rish uchun status cheklovi yo'q)
         show_all = self.request.query_params.get('all')
-        if not show_all:
+        if not show_all and self.action not in ('retrieve', 'update', 'partial_update', 'destroy'):
             qs = qs.filter(status='active')
 
         # Custom sort parameter support (e.g. sort=rating or sort=-rating)
@@ -83,6 +104,16 @@ class PropertyViewSet(viewsets.ModelViewSet):
             qs = qs.order_by('-rating', '-created_at')
 
         return qs.select_related('owner').prefetch_related('images', 'ratings')
+
+    def _parse_number(self, key, cast=float):
+        """Query parametrni xavfsiz songa aylantiradi; noto'g'ri bo'lsa None qaytaradi."""
+        raw = self.request.query_params.get(key)
+        if raw in (None, ''):
+            return None
+        try:
+            return cast(raw)
+        except (ValueError, TypeError):
+            return None
 
     @action(detail=False, methods=['get'])
     def my_properties(self, request):

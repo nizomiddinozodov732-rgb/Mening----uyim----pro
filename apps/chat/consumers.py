@@ -11,7 +11,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope.get('user')
         if not self.user or self.user.is_anonymous:
-            await self.close()
+            # Avtorizatsiya bo'lmasa ulanishni rad etamiz
+            await self.close(code=4001)
+            return
         else:
             self.room_name = f"user_{self.user.id}"
             self.room_group_name = f"chat_{self.room_name}"
@@ -95,22 +97,36 @@ class ChatConsumer(AsyncWebsocketConsumer):
             recipient_id = data.get('recipient_id')
             signal_data = data.get('signal_data')
             call_type = data.get('call_type', 'video')  # video or audio
-            signal_type = data.get('signal_type')  # offer, answer, ice-candidate, end-call
+            signal_type = data.get('signal_type')  # offer, answer, ice-candidate, end-call, reject, ringing, busy
 
-            if recipient_id:
-                await self.channel_layer.group_send(
-                    f"chat_user_{recipient_id}",
-                    {
-                        'type': 'call_signal_message',
-                        'signal': {
-                            'caller_id': self.user.id,
-                            'caller_name': self.user.get_full_name() or self.user.username,
-                            'signal_data': signal_data,
-                            'call_type': call_type,
-                            'signal_type': signal_type
-                        }
+            # Faqat ma'lum signal turlarini qabul qilamiz
+            if signal_type not in ('offer', 'answer', 'ice-candidate', 'end-call', 'reject', 'ringing', 'busy'):
+                return
+
+            try:
+                recipient_id = int(recipient_id)
+            except (ValueError, TypeError):
+                return
+
+            # O'ziga signal yuborishni taqiqlash
+            if recipient_id == self.user.id:
+                return
+
+            await self.channel_layer.group_send(
+                f"chat_user_{recipient_id}",
+                {
+                    'type': 'call_signal_message',
+                    'signal': {
+                        'caller_id': self.user.id,
+                        'caller_name': self.user.get_full_name() or self.user.username,
+                        'caller_avatar': self.user.avatar.url if self.user.avatar else None,
+                        'recipient_id': recipient_id,
+                        'signal_data': signal_data,
+                        'call_type': call_type,
+                        'signal_type': signal_type
                     }
-                )
+                }
+            )
 
     async def chat_message(self, event):
         message = event['message']

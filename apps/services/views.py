@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import ServiceProvider, ServiceRequest
@@ -18,6 +19,19 @@ class ServiceProviderViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
+
+    def _can_modify(self, obj):
+        user = self.request.user
+        return bool(
+            user.is_authenticated
+            and (user.is_admin or user.is_super_admin or obj.user_id == user.id)
+        )
+
+    def get_object(self):
+        obj = super().get_object()
+        if self.action in ('update', 'partial_update', 'destroy') and not self._can_modify(obj):
+            raise PermissionDenied("Bu xizmat profilini tahrirlash yoki o'chirish huquqingiz yo'q.")
+        return obj
 
     def get_queryset(self):
         qs = ServiceProvider.objects.filter(is_available=True).select_related('user')

@@ -298,6 +298,65 @@ select option { background: var(--surface); color: var(--text); }
   background: linear-gradient(to top, rgba(0,0,0,.55) 0%, transparent 55%);
 }
 
+/* ─── Reveal on scroll ──────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1);
+  will-change: opacity, transform;
+}
+.reveal-in { opacity: 1; transform: none; }
+
+/* ─── Hero: orblar va yorug'lik ─────────────────────────────────── */
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes orbDrift {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50%     { transform: translate(26px,-30px) scale(1.08); }
+}
+.animate-orb { animation: orbDrift 14s ease-in-out infinite; }
+
+.hero-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(120% 80% at 88% -12%, rgba(255,255,255,.20), transparent 55%);
+}
+
+/* ─── Eyebrow (kichik ustki yorliq) ─────────────────────────────── */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .35rem .8rem;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: var(--primary-l);
+  color: var(--primary);
+}
+
+/* ─── Card lift ─────────────────────────────────────────────────── */
+.card-lift {
+  transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease;
+}
+.card-lift:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+
+/* ─── Harakatga sezgirlikni kamaytirish ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .animate-orb, .animate-float, .animate-pulse-slow { animation: none !important; }
+}
+
 /* ─── Tag colors ────────────────────────────────────────────────── */
 .tag-blue   { background: #dbeafe; color: #1d4ed8; }
 .tag-violet { background: #ede9fe; color: #6d28d9; }

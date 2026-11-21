@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from decimal import Decimal, InvalidOperation
 from .models import Payment
 from .serializers import PaymentSerializer
 import uuid
@@ -27,6 +28,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         if not amount or not method:
             return Response({'error': 'Narx va to\'lov turi kiritilishi shart!'}, status=400)
+
+        try:
+            amount = Decimal(str(amount))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({'error': 'To\'lov summasi noto\'g\'ri.'}, status=400)
+
+        if amount <= 0:
+            return Response({'error': 'To\'lov summasi noldan katta bo\'lishi kerak.'}, status=400)
 
         # Create pending payment
         payment = Payment.objects.create(
@@ -67,7 +76,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
         
         if not plan or not method:
             return Response({'error': 'Reja va to\'lov turi kiritilishi shart!'}, status=400)
-            
+
+        if plan not in ('monthly', 'yearly'):
+            return Response({'error': 'Noto\'g\'ri obuna rejasi.'}, status=400)
+
         amount = 50000 if plan == 'monthly' else 500000
         
         # Create payment

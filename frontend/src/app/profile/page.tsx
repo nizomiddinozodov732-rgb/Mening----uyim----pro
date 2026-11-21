@@ -7,10 +7,11 @@ import {
   User as UserIcon, Phone, Mail, Edit3, Save, X,
   Settings, Building2, Star, ShieldCheck, Heart,
   Camera, Lock, Eye, EyeOff, CheckCircle2, AlertCircle,
-  Briefcase, MapPin, FileText,
+  Briefcase, MapPin, FileText, Pencil, Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import WishlistButton from '@/components/WishlistButton';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal';
 import { useStore as useWishlist } from '@/store/useStore';
 
 type Tab = 'overview' | 'edit' | 'properties' | 'wishlist' | 'password';
@@ -45,6 +46,10 @@ export default function Profile() {
   /* ── Properties ───────────────────────────────────────── */
   const [myProps, setMyProps] = useState<any[]>([]);
   const [loadProps, setLoadProps] = useState(false);
+  const [propToDelete, setPropToDelete] = useState<any | null>(null);
+  const [deletingProp, setDeletingProp] = useState(false);
+  const [propDeleteErr, setPropDeleteErr] = useState('');
+  const [propDeleteOk, setPropDeleteOk] = useState('');
 
   useEffect(() => {
     if (!isLoggedIn) { router.push('/login'); return; }
@@ -125,6 +130,28 @@ export default function Profile() {
     } catch {
       setPassErr('Joriy parol noto\'g\'ri yoki xatolik yuz berdi');
     } finally { setPassLoad(false); }
+  };
+
+  /* ── E'lonni o'chirish ────────────────────────────────── */
+  const handleDeleteProperty = async () => {
+    if (!propToDelete) return;
+    setDeletingProp(true); setPropDeleteErr('');
+    try {
+      await api.delete(`/properties/${propToDelete.id}/`);
+      setMyProps(prev => prev.filter((x: any) => x.id !== propToDelete.id));
+      setPropDeleteOk(`"${propToDelete.title}" e'loni o'chirildi`);
+      setPropToDelete(null);
+      setTimeout(() => setPropDeleteOk(''), 4000);
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number } };
+      const s = e.response?.status;
+      if (s === 403) setPropDeleteErr("Bu e'lonni o'chirish huquqingiz yo'q.");
+      else if (s === 404) setPropDeleteErr("E'lon topilmadi. Balki allaqachon o'chirilgan.");
+      else if (s === 401) setPropDeleteErr("Sessiya muddati tugagan. Qaytadan tizimga kiring.");
+      else setPropDeleteErr("O'chirishda xatolik yuz berdi. Qaytadan urinib ko'ring.");
+    } finally {
+      setDeletingProp(false);
+    }
   };
 
   const currentAvatar = avatarPreview || user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200';
@@ -353,6 +380,18 @@ export default function Profile() {
                   </Link>
                 )}
               </div>
+
+              {propDeleteOk && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 text-sm flex items-center gap-2">
+                  <CheckCircle2 size={14} /> {propDeleteOk}
+                </div>
+              )}
+              {propDeleteErr && !propToDelete && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 text-sm flex items-center gap-2">
+                  <AlertCircle size={14} /> {propDeleteErr}
+                </div>
+              )}
+
               {loadProps ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[1,2].map(n => <div key={n} className="skeleton h-32 rounded-xl" />)}
@@ -370,21 +409,34 @@ export default function Profile() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {myProps.map((p: any) => (
-                    <Link key={p.id} href={`/properties/${p.id}`}
-                      className="card card-hover rounded-xl overflow-hidden flex gap-3 p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.primary_image || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200'}
-                        alt={p.title} className="w-20 h-16 rounded-lg object-cover shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-[var(--text)] line-clamp-1">{p.title}</p>
-                        <p className="text-xs text-[var(--text-3)] flex items-center gap-1 mt-0.5">
-                          <MapPin size={10} /> {p.location}
-                        </p>
-                        <p className="text-sm font-black text-blue-600 mt-1">
-                          {parseFloat(p.price).toLocaleString()} UZS
-                        </p>
+                    <div key={p.id}
+                      className="card card-hover rounded-xl overflow-hidden flex flex-col">
+                      <Link href={`/properties/${p.id}`} className="flex gap-3 p-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.primary_image || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200'}
+                          alt={p.title} className="w-20 h-16 rounded-lg object-cover shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-[var(--text)] line-clamp-1">{p.title}</p>
+                          <p className="text-xs text-[var(--text-3)] flex items-center gap-1 mt-0.5">
+                            <MapPin size={10} /> {p.location}
+                          </p>
+                          <p className="text-sm font-black text-blue-600 mt-1">
+                            {parseFloat(p.price).toLocaleString()} UZS
+                          </p>
+                        </div>
+                      </Link>
+                      <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+                        <Link href={`/properties/${p.id}/edit`}
+                          className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
+                          <Pencil size={12} /> Tahrirlash
+                        </Link>
+                        <button type="button"
+                          onClick={() => { setPropDeleteErr(''); setPropToDelete(p); }}
+                          className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-500/10 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all">
+                          <Trash2 size={12} /> O&apos;chirish
+                        </button>
                       </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               )}
@@ -481,6 +533,19 @@ export default function Profile() {
 
         </div>
       </div>
+
+      {/* ── O'chirishni tasdiqlash oynasi ─────────────────── */}
+      <ConfirmDeleteModal
+        isOpen={!!propToDelete}
+        onClose={() => { if (!deletingProp) { setPropToDelete(null); setPropDeleteErr(''); } }}
+        onConfirm={handleDeleteProperty}
+        title="E'lonni o'chirish"
+        message={propToDelete
+          ? `"${propToDelete.title}" e'loni butunlay o'chiriladi. Bu amalni qaytarib bo'lmaydi.`
+          : ''}
+        loading={deletingProp}
+        error={propDeleteErr}
+      />
     </div>
   );
 }

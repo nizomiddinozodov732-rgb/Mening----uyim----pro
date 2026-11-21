@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.decorators import action
@@ -23,6 +24,19 @@ class MaterialStoreViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
+
+    def _can_modify(self, obj):
+        user = self.request.user
+        return bool(
+            user.is_authenticated
+            and (user.is_admin or user.is_super_admin or obj.owner_id == user.id)
+        )
+
+    def get_object(self):
+        obj = super().get_object()
+        if self.action in ('update', 'partial_update', 'destroy') and not self._can_modify(obj):
+            raise PermissionDenied("Bu do'konni tahrirlash yoki o'chirish huquqingiz yo'q.")
+        return obj
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def rate(self, request, pk=None):
@@ -98,6 +112,19 @@ class MaterialViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'rate', 'delete_rating']:
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
+
+    def _can_modify(self, obj):
+        user = self.request.user
+        return bool(
+            user.is_authenticated
+            and (user.is_admin or user.is_super_admin or obj.store.owner_id == user.id)
+        )
+
+    def get_object(self):
+        obj = super().get_object()
+        if self.action in ('update', 'partial_update', 'destroy') and not self._can_modify(obj):
+            raise PermissionDenied("Bu materialni tahrirlash yoki o'chirish huquqingiz yo'q.")
+        return obj
 
     def get_queryset(self):
         qs = Material.objects.filter(status='available')

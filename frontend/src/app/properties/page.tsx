@@ -72,7 +72,8 @@ export default function Properties() {
 
   const load = useCallback(async () => {
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setLoading(true);
     try {
@@ -84,12 +85,14 @@ export default function Properties() {
       if (filters.search)    p.search    = filters.search;
       if (filters.ordering)  p.ordering  = filters.ordering;
 
-      const r = await api.get('/properties/', { params: p });
+      const r = await api.get('/properties/', { params: p, signal: controller.signal });
       setProperties(r.data.results || r.data || []);
     } catch (e: unknown) {
-      if ((e as { name?: string }).name !== 'AbortError') console.error(e);
+      if ((e as { name?: string }).name !== 'AbortError' && (e as { name?: string }).name !== 'CanceledError') {
+        console.error(e);
+      }
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) setLoading(false);
     }
   }, [filters]);
 

@@ -20,7 +20,7 @@ class Command(BaseCommand):
         MaterialStore.objects.all().delete()
         ServiceProvider.objects.all().delete()
         Rating.objects.all().delete()
-        User.objects.exclude(is_superuser=True).delete()
+        User.objects.all().delete()
 
         self.stdout.write('Foydalanuvchilar yaratilmoqda...')
         # Super Admin

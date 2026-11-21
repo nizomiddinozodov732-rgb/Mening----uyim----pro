@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat va qo'ng'iroq — Mening Uyim (maket)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script>
+  try { if (localStorage.getItem('mock-theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  function toggleTheme(){const r=document.documentElement;r.classList.toggle('dark');try{localStorage.setItem('mock-theme',r.classList.contains('dark')?'dark':'light')}catch(e){}}
+  function openDrawer(){document.getElementById('wdrawer').classList.add('open');document.getElementById('wscrim').classList.add('open');}
+  function closeDrawer(){document.getElementById('wdrawer').classList.remove('open');document.getElementById('wscrim').classList.remove('open');}
+  function toggleGroup(el){el.parentElement.classList.toggle('open');}
+  // ≤900px: suhbatlar ro'yxati ↔ suhbat oynasi (mobil ilovadagidek)
+  function openThread(){document.getElementById('chatLayout').classList.add('show-thread');}
+  function backToList(){document.getElementById('chatLayout').classList.remove('show-thread');}
+  function showCall(state){
+    const m=document.getElementById('call');
+    m.style.display = state==='none' ? 'none' : 'flex';
+    ['audio','video','incoming','outgoing'].forEach(s=>{document.getElementById('st-'+s).style.display = s===state?'flex':'none';});
+  }
+</script>
+
+<style>
+  .chat-layout {
+    display:grid; grid-template-columns: 320px 1fr; gap:0;
+    border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden;
+    height:min(760px, calc(100vh - 150px)); background:var(--surface);
+  }
+  .conv-list { border-right:1px solid var(--border); overflow-y:auto; }
+  .conv-item { display:flex; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .15s; min-height:48px; }
+  .conv-item:hover { background:var(--bg-2); }
+  .conv-item.active { background:var(--primary-l); }
+  .thread { display:flex; flex-direction:column; height:100%; }
+  .thread-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border); }
+  .thread-body { flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:12px; background:var(--bg-2); }
+  .composer { border-top:1px solid var(--border); padding:12px; display:flex; gap:8px; align-items:center; }
+  .msg-row { display:flex; gap:8px; }
+  .msg-row.out { justify-content:flex-end; }
+  .msg-meta { font-size:var(--fs-micro); color:var(--text-3); margin-top:3px; }
+  .day-sep { align-self:center; font-size:var(--fs-micro); color:var(--text-3); background:var(--surface); border:1px solid var(--border); padding:2px 10px; border-radius:var(--r-full); }
+
+  /* ── ≤900px: bitta ustun; ro'yxat ↔ suhbat oynasi ── */
+  @media (max-width:900px){
+    .chat-layout { grid-template-columns: 1fr; height: calc(100vh - 180px); }
+    .chat-layout .thread { display: none; }
+    .chat-layout.show-thread .conv-list { display: none; }
+    .chat-layout.show-thread .thread { display: flex; }
+  }
+  /* ── ≤640px: pastki tab panel uchun joy ── */
+  @media (max-width:640px){
+    .chat-layout { border-radius: var(--r-lg); height: calc(100vh - 200px); }
+    .thread-body { padding: 14px; }
+  }
+</style>
+
+<!-- ══ NAVBAR — barcha veb-sahifalarda bir xil guruhlangan tuzilma ══ -->
+<header class="navbar">
+  <div class="wrap navbar-inner">
+    <a href="index.html" class="center g2">
+      <span style="width:34px;height:34px;border-radius:var(--r-md);background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:#fff">⌂</span>
+      <span class="t-h3 gradient-text">Mening Uyim</span>
+      <span class="badge badge-primary desk-only">PRO</span>
+    </a>
+
+    <nav class="nav-links desk-only" aria-label="Asosiy navigatsiya">
+      <a class="nav-link" href="home.html">Bosh sahifa</a>
+
+      <div class="nav-menu">
+        <button class="nav-link" aria-haspopup="true">Ko'chmas mulk ▾</button>
+        <div class="nav-dropdown">
+          <a href="properties.html">Sotib olish</a>
+          <a href="properties.html">Ijara</a>
+          <a href="properties.html">Hovli / Kottedj</a>
+          <a href="properties.html">Yer maydoni</a>
+        </div>
+      </div>
+
+      <div class="nav-menu">
+        <button class="nav-link" aria-haspopup="true">Xizmatlar ▾</button>
+        <div class="nav-dropdown">
+          <a href="#">Ustalar</a>
+          <a href="#">Arxitektorlar</a>
+          <a href="#">Qurilish materiallari</a>
+        </div>
+      </div>
+
+      <a class="nav-link" href="#">Kalkulyator</a>
+    </nav>
+
+    <div class="center g2">
+      <a class="btn btn-primary btn-sm desk-only" href="#">+ E'lon joylash</a>
+      <a class="icon-btn icon-btn-outline" href="#" aria-label="Sevimlilar">♡</a>
+      <a class="icon-btn icon-btn-outline" href="chat.html" aria-label="Xabarlar" aria-current="page" style="background:var(--primary-l);color:var(--primary);border-color:transparent">✉</a>
+      <button class="icon-btn icon-btn-outline" onclick="toggleTheme()" aria-label="Tema">◐</button>
+      <a href="#" class="center g2 desk-only" style="border:1px solid var(--border);border-radius:var(--r-md);padding:4px 10px 4px 4px">
+        <span class="avatar avatar-sm">AK</span><span class="t-cap semi">Aziz</span>
+      </a>
+      <button class="icon-btn icon-btn-outline only-lg" onclick="openDrawer()" aria-label="Menyu" aria-expanded="false">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ YON DRAWER (≤1024px) ══ -->
+<div class="wscrim" id="wscrim" onclick="closeDrawer()"></div>
+<aside class="wdrawer" id="wdrawer" aria-label="Mobil navigatsiya">
+  <div class="between" style="padding:14px 16px;border-bottom:1px solid var(--border)">
+    <span class="center g3">
+      <span class="avatar">AK</span>
+      <span><span class="semi t-cap" style="display:block">Aziz Karimov</span><span class="t-micro muted-2">+998 90 ••• 45 67</span></span>
+    </span>
+    <button class="icon-btn" onclick="closeDrawer()" aria-label="Yopish">✕</button>
+  </div>
+  <nav class="grow" style="overflow-y:auto;padding:8px 0">
+    <a class="wgroup-head" href="home.html">Bosh sahifa</a>
+    <div class="wgroup">
+      <button class="wgroup-head" onclick="toggleGroup(this)" aria-expanded="false">Ko'chmas mulk <span class="chev">›</span></button>
+      <div class="wsub">
+        <a href="properties.html">Sotib olish</a>
+        <a href="properties.html">Ijara</a>
+        <a href="properties.html">Hovli / Kottedj</a>
+        <a href="properties.html">Yer maydoni</a>
+      </div>
+    </div>
+    <div class="wgroup">
+      <button class="wgroup-head" onclick="toggleGroup(this)" aria-expanded="false">Xizmatlar <span class="chev">›</span></button>
+      <div class="wsub">
+        <a href="#">Ustalar</a>
+        <a href="#">Arxitektorlar</a>
+        <a href="#">Qurilish materiallari</a>
+      </div>
+    </div>
+    <a class="wgroup-head" href="#">Kalkulyator</a>
+    <a class="wgroup-head" href="#">Yangiliklar</a>
+    <a class="wgroup-head active" href="chat.html" aria-current="page">Xabarlar <span class="badge badge-danger">3</span></a>
+  </nav>
+  <div style="padding:12px;border-top:1px solid var(--border)">
+    <a class="btn btn-primary btn-block" href="#">+ E'lon joylash</a>
+  </div>
+</aside>
+
+<main class="wrap mt-5">
+  <div class="between wrapx g3 mb-4">
+    <h1 class="t-h1">Xabarlar</h1>
+    <div class="center g2">
+      <span class="badge badge-success">● Real-time faol</span>
+      <button class="btn btn-outline btn-sm desk-only" onclick="showCall('incoming')">Kiruvchi qo'ng'iroq</button>
+      <button class="btn btn-outline btn-sm desk-only" onclick="showCall('outgoing')">Chiquvchi</button>
+      <button class="btn btn-outline btn-sm desk-only" onclick="showCall('audio')">Ovozli (ulangan)</button>
+      <button class="btn btn-outline btn-sm desk-only" onclick="showCall('video')">Video (ulangan)</button>
+      <button class="btn btn-outline btn-sm only-lg" onclick="showCall('video')">☎ Demo qo'ng'iroq</button>
+    </div>
+  </div>
+
+  <div class="chat-layout" id="chatLayout">
+    <!-- ══ SUHBATLAR ══ -->
+    <aside class="conv-list" aria-label="Suhbatlar ro'yxati">
+      <div style="padding:12px"><input class="input" placeholder="Suhbatlarni qidirish..." aria-label="Suhbatlarni qidirish"></div>
+      <div class="conv-item active" onclick="openThread()" role="button" tabindex="0">
+        <span class="avatar avatar-wrap">BS<span class="dot-online"></span></span>
+        <div class="grow" style="min-width:0">
+          <div class="between"><span class="semi t-cap">Bekzod S.</span><span class="t-micro muted-2">10:24</span></div>
+          <p class="t-cap muted-2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Kvartira bo'yicha gaplashsak bo'ladimi?</p>
+        </div>
+      </div>
+      <div class="conv-item" onclick="openThread()" role="button" tabindex="0">
+        <span class="avatar">DK</span>
+        <div class="grow" style="min-width:0">
+          <div class="between"><span class="semi t-cap">Dilnoza K.</span><span class="t-micro muted-2">Kecha</span></div>
+          <p class="t-cap muted-2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rahmat, kelishdik!</p>
+        </div>
+      </div>
+      <div class="conv-item" onclick="openThread()" role="button" tabindex="0">
+        <span class="avatar">AR</span>
+        <div class="grow" style="min-width:0">
+          <div class="between"><span class="semi t-cap">Aziz R.</span><span class="t-micro muted-2">Du</span></div>
+          <p class="t-cap muted-2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Materiallar narxi qanday?</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══ SUHBAT OYNASI ══ -->
+    <section class="thread" aria-label="Suhbat oynasi">
+      <div class="thread-head">
+        <div class="center g3">
+          <button class="icon-btn icon-btn-outline only-sm" onclick="backToList()" aria-label="Suhbatlar ro'yxatiga qaytish">‹</button>
+          <span class="avatar avatar-wrap"><span>BS</span><span class="dot-online"></span></span>
+          <div>
+            <p class="semi">Bekzod S.</p>
+            <p class="t-micro muted-2">#1245 e'lon · Chilonzor, 3 xonali</p>
+          </div>
+        </div>
+        <div class="center g2">
+          <button class="icon-btn icon-btn-outline" onclick="showCall('audio')" title="Ovozli qo'ng'iroq" aria-label="Ovozli qo'ng'iroq">☎</button>
+          <button class="icon-btn icon-btn-outline" onclick="showCall('video')" title="Video qo'ng'iroq" aria-label="Video qo'ng'iroq">▣</button>
+          <button class="icon-btn icon-btn-outline hide-sm" title="Batafsil" aria-label="Batafsil">⋯</button>
+        </div>
+      </div>
+
+      <div class="thread-body">
+        <span class="day-sep">Bugun</span>
+
+        <div class="msg-row">
+          <span class="avatar avatar-sm">BS</span>
+          <div>
+            <div class="chat-bubble in">Assalomu alaykum! E'lon bo'yicha yozdim.</div>
+            <div class="msg-meta">10:20</div>
+          </div>
+        </div>
+
+        <div class="msg-row out">
+          <div>
+            <div class="chat-bubble out">Va alaykum assalom! Yaxshiman, marhamat.</div>
+            <div class="msg-meta tr">10:22 ✓✓</div>
+          </div>
+        </div>
+
+        <div class="msg-row">
+          <span class="avatar avatar-sm">BS</span>
+          <div>
+            <div class="chat-bubble in">Kvartira hali sotilmaganmi?</div>
+            <div class="msg-meta">10:23</div>
+          </div>
+        </div>
+
+        <div class="msg-row out">
+          <div>
+            <div class="chat-bubble out">Ha, mavjud. Bugun ko'rsatish mumkin.</div>
+            <div class="msg-meta tr">10:24 ✓✓</div>
+          </div>
+        </div>
+
+        <!-- Fayl xabari -->
+        <div class="msg-row">
+          <span class="avatar avatar-sm">BS</span>
+          <div style="max-width:74%">
+            <div class="card pad-4" style="display:flex;align-items:center;gap:12px">
+              <span class="empty-icon" style="width:40px;height:40px;border-radius:var(--r-sm)">▤</span>
+              <div><p class="semi t-cap">e'lon-fotos.pdf</p><p class="t-micro muted-2">1.2 MB · PDF</p></div>
+              <a class="btn btn-outline btn-sm" href="#" aria-label="Yuklab olish">↓</a>
+            </div>
+            <div class="msg-meta">10:24</div>
+          </div>
+        </div>
+
+        <!-- Qo'ng'iroq yozuvi (call log) -->
+        <div class="msg-row out">
+          <div class="chat-bubble out" style="display:flex;align-items:center;gap:8px">
+            <span>☎</span> Chiquvchi qo'ng'iroq · 2:14
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <button class="icon-btn icon-btn-outline" aria-label="Biriktirish">⌇</button>
+        <input class="input grow" placeholder="Xabar yozing..." aria-label="Xabar matni">
+        <button class="btn btn-primary" aria-label="Yuborish">➤</button>
+      </div>
+    </section>
+  </div>
+
+  <p class="t-cap muted-2 mt-4 hide-sm">Eslatma: qo'ng'iroq holatlari (kiruvchi, chiquvchi, ovozli, video) yuqoridagi tugmalar orqali almashtiriladi.</p>
+</main>
+
+<footer class="footer">
+  <div class="wrap" style="padding:24px 0"><p class="t-micro muted-2">© 2026 Mening Uyim · Chat maketi</p></div>
+</footer>
+
+<!-- ══ QO'NG'IROQ MODALI ══ -->
+<div class="call-stage" id="call" style="display:none;position:fixed">
+
+  <!-- Ovozli (ulangan) -->
+  <div id="st-audio" style="display:none;flex-direction:column;align-items:center;gap:20px">
+    <span class="avatar avatar-xl">BS</span>
+    <div class="tc">
+      <p class="t-h1" style="color:#fff">Bekzod S.</p>
+      <p class="t-cap" style="color:#93c5fd">● 02:14</p>
+    </div>
+    <div class="call-actions">
+      <button class="call-btn mute" title="Ovozni o'chirish" aria-label="Ovozni o'chirish">🎙</button>
+      <button class="call-btn end" onclick="showCall('none')" title="Tugatish" aria-label="Tugatish">✕</button>
+    </div>
+  </div>
+
+  <!-- Video (ulangan) -->
+  <div id="st-video" style="display:none;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:560px">
+    <div class="call-video">
+      <div style="width:100%;height:100%;background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;color:#94a3b8">Masofaviy video</div>
+      <div class="call-pip"><div style="width:100%;height:100%;background:linear-gradient(135deg,#2563eb,#6366f1)"></div></div>
+    </div>
+    <div class="tc">
+      <p class="t-h3" style="color:#fff">Bekzod S. · Video qo'ng'iroq</p>
+      <p class="t-cap" style="color:#86efac">● 02:14</p>
+    </div>
+    <div class="call-actions">
+      <button class="call-btn mute" title="Kamera" aria-label="Kamera">▣</button>
+      <button class="call-btn mute" title="Mikrofon" aria-label="Mikrofon">🎙</button>
+      <button class="call-btn end" onclick="showCall('none')" title="Tugatish" aria-label="Tugatish">✕</button>
+    </div>
+  </div>
+
+  <!-- Kiruvchi -->
+  <div id="st-incoming" style="display:none;flex-direction:column;align-items:center;gap:20px">
+    <span class="avatar avatar-xl">BS</span>
+    <div class="tc">
+      <p class="t-h1" style="color:#fff">Bekzod S.</p>
+      <p class="t-cap" style="color:#93c5fd"><span class="pulse-dot" style="display:inline-block;margin-right:6px"></span>Kiruvchi video qo'ng'iroq...</p>
+    </div>
+    <div class="call-actions">
+      <button class="call-btn end" onclick="showCall('none')" title="Rad etish" aria-label="Rad etish">✕</button>
+      <button class="call-btn accept" onclick="showCall('video')" title="Qabul qilish" aria-label="Qabul qilish">☎</button>
+    </div>
+  </div>
+
+  <!-- Chiquvchi -->
+  <div id="st-outgoing" style="display:none;flex-direction:column;align-items:center;gap:20px">
+    <span class="avatar avatar-xl">BS</span>
+    <div class="tc">
+      <p class="t-h1" style="color:#fff">Bekzod S.</p>
+      <p class="t-cap" style="color:#93c5fd"><span class="pulse-dot" style="display:inline-block;margin-right:6px"></span>Qo'ng'iroq qilinmoqda...</p>
+    </div>
+    <div class="call-actions">
+      <button class="call-btn end" onclick="showCall('none')" title="Bekor qilish" aria-label="Bekor qilish">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PASTKI TAB PANEL (≤640px) ══ -->
+<nav class="wtabbar" aria-label="Asosiy navigatsiya">
+  <a class="wtab" href="home.html"><span class="wtab-ico">⌂</span>Bosh sahifa</a>
+  <a class="wtab" href="properties.html"><span class="wtab-ico">⌕</span>Qidiruv</a>
+  <a class="wtab" href="#"><span class="wtab-ico">♡</span>Sevimli</a>
+  <a class="wtab active" href="chat.html" aria-current="page"><span class="wtab-ico">✉</span>Chat<span class="wtab-badge">3</span></a>
+  <a class="wtab" href="#"><span class="wtab-ico">◉</span>Profil</a>
+</nav>
+</body>
+</html>

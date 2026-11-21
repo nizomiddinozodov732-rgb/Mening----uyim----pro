@@ -25,3 +25,7 @@ node_modules/
 
 # MacOS
 .DS_Store
+
+# Local/tool artifacts
+.vercel/
+.trae-html-share-packages/

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { api, useStore } from '@/store/useStore';
 import { 
-  Send, Phone, Video, PhoneOff, User, MessageSquare, Plus, Search,
-  X, Check, CheckCheck, Circle, Clock, Sparkles, Building2,
+  Send, Phone, Video, PhoneOff, MessageSquare, Plus, Search,
+  X, CheckCheck, Sparkles,
   Image as ImageIcon, Film, FileText, MapPin, Paperclip,
-  ExternalLink, Download, ArrowUpRight
+  ExternalLink, Download, ArrowUpRight,
+  Mic, MicOff, VideoOff, PhoneIncoming, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -54,9 +55,38 @@ interface Conversation {
   updated_at?: string;
 }
 
+type CallType = 'audio' | 'video';
+type CallState = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected';
+
+interface CallPeer {
+  id: number;
+  name: string;
+  avatar?: string | null;
+}
+
+// WebRTC uchun ICE serverlar. TURN (ixtiyoriy) ENV orqali sozlanadi —
+// cheklangan (NAT/firewall) tarmoqlarda ham aloqa o'rnatish uchun kerak.
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
+const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL;
+if (TURN_URL) {
+  ICE_SERVERS.push({
+    urls: TURN_URL,
+    username: process.env.NEXT_PUBLIC_TURN_USERNAME,
+    credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
+  });
+}
+
+function formatDuration(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const s = (totalSeconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
 function ChatContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { user, accessToken, isLoggedIn } = useStore();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -73,13 +103,34 @@ function ChatContent() {
   const [loadingUsers, setLoadingUsers] = useState(false);
 
   // Call state
-  const [isCalling, setIsCalling] = useState(false);
-  const [callType, setCallType] = useState<'audio' | 'video'>('audio');
-  const [callActive, setCallActive] = useState(false);
+  const [callState, setCallState] = useState<CallState>('idle');
+  const [callType, setCallType] = useState<CallType>('audio');
+  const [callPeer, setCallPeer] = useState<CallPeer | null>(null);
+  const [callError, setCallError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCamOff, setIsCamOff] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   const socketRef = useRef<WebSocket | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ── WebRTC refs ──────────────────────────────────────────────
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const peerIdRef = useRef<number | null>(null);
+  const isCallerRef = useRef(false);
+  const callTypeRef = useRef<CallType>('audio');
+  const callStateRef = useRef<CallState>('idle');
+  const incomingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeConvIdRef = useRef<number | null>(null);
+  // WebSocket xabaridan qo'ng'iroq signalini qayta ishlovchi eng so'nggi funksiya
+  const signalHandlerRef = useRef<((sig: any) => void) | null>(null);
 
   // File and Location input refs
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -88,6 +139,10 @@ function ChatContent() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
 
+  // URL'dan kelgan parametrlar (qiymat bo'yicha barqaror — qayta ulanish/loop oldini oladi)
+  const convParam = searchParams.get('conv');
+  const userParam = searchParams.get('user');
+
   // 1. Load Conversations
   const loadConversations = useCallback(async () => {
     try {
@@ -95,18 +150,15 @@ function ChatContent() {
       const list: Conversation[] = res.data.results || res.data || [];
       setConversations(list);
 
-      const convParam = searchParams.get('conv');
-      const userParam = searchParams.get('user');
-
       if (convParam) {
         const found = list.find((c) => c.id === parseInt(convParam));
-        if (found) setActiveConv(found);
+        if (found && activeConvIdRef.current !== found.id) setActiveConv(found);
       } else if (userParam) {
         // Agar ?user=ID kelsa, shu user bilan suhbat topish yoki yangi ochish
         const targetUserId = parseInt(userParam);
         const existing = list.find((c) => c.participants.some((p) => p.id === targetUserId));
         if (existing) {
-          setActiveConv(existing);
+          if (activeConvIdRef.current !== existing.id) setActiveConv(existing);
         } else {
           // Yangi ochish
           try {
@@ -118,14 +170,14 @@ function ChatContent() {
             console.error('Failed to auto-create conversation with user:', err);
           }
         }
-      } else if (!activeConv && list.length > 0) {
+      } else if (!activeConvIdRef.current && list.length > 0) {
         // Standart holatda birinchi suhbatni ochish
         setActiveConv(list[0]);
       }
     } catch (err) {
       console.error('Error fetching conversations:', err);
     }
-  }, [searchParams, activeConv]);
+  }, [convParam, userParam]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -144,94 +196,147 @@ function ChatContent() {
     }
   }, []);
 
-  // 3. Connect WebSocket with JWT token + Fallback Polling
+  // 3. WebSocket ulanishi — login/token o'zgarganda bir marta ulanadi.
+  //    Suhbat almashganda qayta ulanmaydi, shu sababli qo'ng'iroq signallari yo'qolmaydi.
   useEffect(() => {
-    if (!isLoggedIn || !activeConv) return;
+    if (!isLoggedIn) return;
 
-    loadMessages(activeConv.id);
-
-    // Tokenni olish (store yoki localStorage)
     const token = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : '');
+    if (!token) return;
 
-    // WebSocket URL aniqlash
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const wsProto = isHttps ? 'wss' : 'ws';
-    const rawHost = (
-      process.env.NEXT_PUBLIC_WS_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      ''
-    )
-      .replace(/^https?:\/\//, '')
-      .replace(/^wss?:\/\//, '')
-      .split('/')[0];
-    // Nisbiy API manzilida (/api/v1) hostni joriy oynadan olamiz
-    const wsHost = rawHost || (typeof window !== 'undefined' ? window.location.host : '127.0.0.1:8000');
-
-    const wsUrl = `${wsProto}://${wsHost}/ws/chat/?token=${token}`;
+    // WebSocket URL aniqlash.
+    // Ustuvorlik: aniq NEXT_PUBLIC_WS_URL -> NEXT_PUBLIC_API_URL hosti -> joriy domen.
+    // `server.js` (custom server) `/ws/*` WebSocket ulanishlarini Django'ga proxy qiladi,
+    // shu sababli bir xil domendagi manzil ham dev, ham production'da ishlaydi.
+    const wsUrl = (() => {
+      const explicit = (process.env.NEXT_PUBLIC_WS_URL || '').trim();
+      const sameOrigin = () => {
+        const loc = typeof window !== 'undefined' ? window.location : null;
+        const proto = loc && loc.protocol === 'https:' ? 'wss' : 'ws';
+        const host = loc ? loc.host : '127.0.0.1:8000';
+        return `${proto}://${host}/ws/chat/?token=${token}`;
+      };
+      if (explicit) {
+        // Berilgan manzil to'liq yo'lni o'z ichiga olmasa, standart yo'lni qo'shamiz
+        let base = explicit.replace(/\/+$/, '');
+        if (!/\/ws\//.test(base)) base = `${base}/ws/chat/`;
+        else if (!base.endsWith('/')) base = `${base}/`;
+        const sep = base.includes('?') ? '&' : '?';
+        return `${base}${sep}token=${token}`;
+      }
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+      if (/^https?:\/\//i.test(apiUrl)) {
+        // Mutlaq API manzilidan hostni olib, WebSocket manzilini yasaymiz
+        try {
+          const u = new URL(apiUrl);
+          const wsProto = u.protocol === 'https:' ? 'wss' : 'ws';
+          return `${wsProto}://${u.host}/ws/chat/?token=${token}`;
+        } catch {
+          return sameOrigin();
+        }
+      }
+      // Nisbiy yoki bo'sh manzil -> joriy domen (server.js proxy qiladi)
+      return sameOrigin();
+    })();
 
     let socket: WebSocket | null = null;
-    try {
-      socket = new WebSocket(wsUrl);
-      socketRef.current = socket;
+    let stopped = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-      socket.onopen = () => {
-        setWsConnected(true);
-      };
+    const connect = () => {
+      try {
+        socket = new WebSocket(wsUrl);
+        socketRef.current = socket;
 
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'message') {
-            const newMsg: Message = data.data;
-            if (newMsg.conversation === activeConv.id) {
-              setMessages((prev) => {
-                if (prev.some((m) => m.id === newMsg.id)) return prev;
-                return [...prev, newMsg];
-              });
+        socket.onopen = () => setWsConnected(true);
+
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'message') {
+              const newMsg: Message = data.data;
+              if (newMsg.conversation === activeConvIdRef.current) {
+                setMessages((prev) => (prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]));
+              }
+              // Suhbatlar ro'yxatida oxirgi xabarni yangilash
+              setConversations((prev) =>
+                prev.map((c) => (c.id === newMsg.conversation ? { ...c, last_message: newMsg } : c))
+              );
+            } else if (data.type === 'call_signal') {
+              signalHandlerRef.current?.(data.data);
             }
-            // Suhbatlar ro'yxatida oxirgi xabarni yangilash
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === newMsg.conversation ? { ...c, last_message: newMsg } : c
-              )
-            );
-          } else if (data.type === 'call_signal') {
-            if (data.data.signal_type === 'offer') {
-              setCallType(data.data.call_type || 'audio');
-              setIsCalling(true);
-            }
+          } catch (e) {
+            console.error('Error parsing WS message:', e);
           }
-        } catch (e) {
-          console.error('Error parsing WS message:', e);
-        }
-      };
+        };
 
-      socket.onerror = () => {
+        socket.onerror = () => setWsConnected(false);
+
+        socket.onclose = () => {
+          setWsConnected(false);
+          // Kutilmagan uzilishda avtomatik qayta ulanish (tarmoq barqarorligi)
+          if (!stopped) reconnectTimer = setTimeout(connect, 3000);
+        };
+      } catch (err) {
+        console.warn('WebSocket connection failed, retrying...');
         setWsConnected(false);
-      };
-
-      socket.onclose = () => {
-        setWsConnected(false);
-      };
-    } catch (err) {
-      console.warn('WebSocket connection failed, using HTTP polling fallback');
-      setWsConnected(false);
-    }
-
-    // Har 4 soniyada yangi xabarlarni HTTP polling orqali tekshirish (fallback kafolati)
-    pollingIntervalRef.current = setInterval(() => {
-      loadMessages(activeConv.id);
-    }, 4000);
-
-    return () => {
-      if (socket) {
-        socket.close();
-      }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+        if (!stopped) reconnectTimer = setTimeout(connect, 3000);
       }
     };
-  }, [activeConv, isLoggedIn, accessToken, loadMessages]);
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
+      socketRef.current = null;
+      setWsConnected(false);
+    };
+  }, [isLoggedIn, accessToken]);
+
+  // 4. Faol suhbat xabarlarini yuklash (+ WebSocket uzilganda HTTP polling fallback)
+  useEffect(() => {
+    if (!isLoggedIn || !activeConv) return;
+    loadMessages(activeConv.id);
+    const interval = setInterval(() => loadMessages(activeConv.id), 4000);
+    return () => clearInterval(interval);
+  }, [activeConv, isLoggedIn, loadMessages]);
+
+  // 5. Faol suhbat id sini ref da saqlash (WS callback uchun)
+  useEffect(() => {
+    activeConvIdRef.current = activeConv?.id ?? null;
+  }, [activeConv]);
+
+  // 6. Media oqimlarini video/audio elementlarga ulash
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current && localVideoRef.current.srcObject !== localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+    if (remoteVideoRef.current && remoteStreamRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current;
+    }
+    if (remoteAudioRef.current && remoteStreamRef.current && remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
+      remoteAudioRef.current.srcObject = remoteStreamRef.current;
+    }
+  }, [callState, callType]);
+
+  // ── Suhbatdoshni aniqlash yordamchilari ──────────────────────
+  const getRecipient = (conv: Conversation): Participant | undefined => {
+    return conv.participants.find((p) => p.id !== user?.id) || conv.participants[0];
+  };
+
+  const getRecipientName = (conv: Conversation) => {
+    const r = getRecipient(conv);
+    if (!r) return 'Muloqotdosh';
+    const fullName = `${r.first_name || ''} ${r.last_name || ''}`.trim();
+    return fullName || r.username || 'Foydalanuvchi';
+  };
+
+  const activeRecipient = activeConv ? getRecipient(activeConv) : null;
 
   // Auto-scroll messages — faqat chat box ichida, butun sahifani emas
   useEffect(() => {
@@ -384,19 +489,348 @@ function ChatContent() {
     }
   };
 
-  // 6. Call functions
-  const startCall = (type: 'audio' | 'video') => {
-    setCallType(type);
-    setIsCalling(true);
-    setTimeout(() => {
-      setCallActive(true);
-    }, 2000);
+  // ══════════ QO'NG'IROQ (WebRTC) LOGIKASI ══════════
+
+  const updateCallState = (s: CallState) => {
+    callStateRef.current = s;
+    setCallState(s);
   };
 
-  const endCall = () => {
-    setIsCalling(false);
-    setCallActive(false);
+  const sendCallSignal = (payload: Record<string, unknown>): boolean => {
+    const s = socketRef.current;
+    if (s && s.readyState === WebSocket.OPEN) {
+      s.send(JSON.stringify({ action: 'call_signal', ...payload }));
+      return true;
+    }
+    return false;
   };
+
+  const startDurationTimer = () => {
+    if (durationTimerRef.current) return;
+    setCallDuration(0);
+    durationTimerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000);
+  };
+
+  const flushPendingCandidates = async () => {
+    const pc = pcRef.current;
+    if (!pc || !pc.remoteDescription) return;
+    const queued = pendingCandidatesRef.current;
+    pendingCandidatesRef.current = [];
+    for (const c of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(c));
+      } catch {
+        /* ba'zi ICE nomzodlar eskirgan bo'lishi mumkin */
+      }
+    }
+  };
+
+  const cleanupCall = (notifyPeer = false) => {
+    if (notifyPeer && peerIdRef.current != null) {
+      sendCallSignal({ recipient_id: peerIdRef.current, signal_type: 'end-call', call_type: callTypeRef.current });
+    }
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+      durationTimerRef.current = null;
+    }
+    if (pcRef.current) {
+      try {
+        pcRef.current.onicecandidate = null;
+        pcRef.current.ontrack = null;
+        pcRef.current.onconnectionstatechange = null;
+        pcRef.current.close();
+      } catch {
+        /* e'tiborsiz */
+      }
+      pcRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    remoteStreamRef.current = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    pendingCandidatesRef.current = [];
+    incomingOfferRef.current = null;
+    peerIdRef.current = null;
+    isCallerRef.current = false;
+    setIsMuted(false);
+    setIsCamOff(false);
+    setCallDuration(0);
+    setCallError(null);
+    setCallPeer(null);
+    updateCallState('idle');
+  };
+
+  const createPeerConnection = (remoteId: number): RTCPeerConnection => {
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        sendCallSignal({
+          recipient_id: remoteId,
+          signal_type: 'ice-candidate',
+          call_type: callTypeRef.current,
+          signal_data: e.candidate.toJSON(),
+        });
+      }
+    };
+
+    pc.ontrack = (e) => {
+      const stream = e.streams[0];
+      if (!stream) return;
+      remoteStreamRef.current = stream;
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
+    };
+
+    pc.onconnectionstatechange = () => {
+      const st = pc.connectionState;
+      if (st === 'connected') {
+        updateCallState('connected');
+        startDurationTimer();
+      } else if (st === 'failed') {
+        setCallError("Aloqa uzildi (tarmoq muammosi).");
+        setTimeout(() => cleanupCall(false), 2500);
+      }
+    };
+
+    // ICE qayta ishga tushirish — tarmoq o'zgarganda aloqani tiklashga yordam beradi
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        try {
+          pc.restartIce();
+        } catch {
+          /* e'tiborsiz */
+        }
+      }
+    };
+
+    return pc;
+  };
+
+  const getLocalStream = async (type: CallType): Promise<MediaStream> => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Brauzeringiz media qurilmalarini qo'llab-quvvatlamaydi.");
+    }
+    const constraints: MediaStreamConstraints = type === 'video'
+      ? { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } }
+      : { audio: true, video: false };
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
+        throw new Error('Kamera va mikrofon uchun ruxsat berilmadi.');
+      }
+      if (err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError') {
+        if (type === 'video') {
+          // Kamera topilmasa — faqat ovozli rejimda davom etamiz
+          return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        }
+        throw new Error('Mikrofon yoki kamera topilmadi.');
+      }
+      if (err?.name === 'NotReadableError') {
+        throw new Error('Kamera yoki mikrofon boshqa dasturda band.');
+      }
+      throw new Error("Media qurilmalarini ishga tushirib bo'lmadi.");
+    }
+  };
+
+  // WebSocket orqali kelgan signalizatsiya xabarini qayta ishlash
+  const handleCallSignal = (sig: any) => {
+    if (!sig || !sig.signal_type) return;
+    const fromId: number = sig.caller_id;
+    const type: string = sig.signal_type;
+    const incomingType: CallType = sig.call_type === 'video' ? 'video' : 'audio';
+
+    if (type === 'offer') {
+      // Allaqachon qo'ng'iroqda bo'lsak — band deb javob qaytaramiz
+      if (callStateRef.current !== 'idle') {
+        sendCallSignal({ recipient_id: fromId, signal_type: 'busy', call_type: incomingType });
+        return;
+      }
+      peerIdRef.current = fromId;
+      isCallerRef.current = false;
+      callTypeRef.current = incomingType;
+      incomingOfferRef.current = sig.signal_data;
+      setCallType(incomingType);
+      setCallPeer({ id: fromId, name: sig.caller_name || 'Foydalanuvchi', avatar: sig.caller_avatar });
+      setCallError(null);
+      updateCallState('incoming');
+      return;
+    }
+
+    // Qolgan signallarni faqat joriy qo'ng'iroq ishtirokchisidan qabul qilamiz
+    if (fromId !== peerIdRef.current) return;
+
+    if (type === 'answer') {
+      const pc = pcRef.current;
+      if (pc && isCallerRef.current && sig.signal_data) {
+        pc.setRemoteDescription(new RTCSessionDescription(sig.signal_data))
+          .then(flushPendingCandidates)
+          .catch(() => setCallError("Aloqa o'rnatilmadi."));
+      }
+      return;
+    }
+
+    if (type === 'ice-candidate') {
+      if (!sig.signal_data) return;
+      const pc = pcRef.current;
+      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+        pc.addIceCandidate(new RTCIceCandidate(sig.signal_data)).catch(() => { /* e'tiborsiz */ });
+      } else {
+        // Masofaviy tavsif hali o'rnatilmagan — nomzodlarni navbatga qo'yamiz
+        pendingCandidatesRef.current.push(sig.signal_data);
+      }
+      return;
+    }
+
+    if (type === 'end-call') {
+      setCallError("Qo'ng'iroq tugatildi.");
+      cleanupCall(false);
+      return;
+    }
+
+    if (type === 'reject') {
+      setCallError("Qo'ng'iroq rad etildi.");
+      setTimeout(() => cleanupCall(false), 2000);
+      return;
+    }
+
+    if (type === 'busy') {
+      setCallError('Foydalanuvchi hozir band.');
+      setTimeout(() => cleanupCall(false), 2000);
+      return;
+    }
+  };
+
+  // Eng so'nggi signal ishlovchisini ref ga yozib qo'yamiz (WS callback uchun)
+  useEffect(() => {
+    signalHandlerRef.current = handleCallSignal;
+  });
+
+  // Chiquvchi qo'ng'iroqni boshlash
+  const startCall = async (type: CallType) => {
+    if (callStateRef.current !== 'idle' || !activeConv) return;
+    const recipient = getRecipient(activeConv);
+    if (!recipient) return;
+
+    callTypeRef.current = type;
+    peerIdRef.current = recipient.id;
+    isCallerRef.current = true;
+    setCallType(type);
+    setCallPeer({ id: recipient.id, name: getRecipientName(activeConv), avatar: recipient.avatar });
+    setCallError(null);
+    updateCallState('outgoing');
+
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      setCallError("Server bilan aloqa yo'q. Qo'ng'iroqni amalga oshirib bo'lmaydi.");
+      setTimeout(() => cleanupCall(false), 3000);
+      return;
+    }
+
+    try {
+      const stream = await getLocalStream(type);
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      const pc = createPeerConnection(recipient.id);
+      pcRef.current = pc;
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: type === 'video',
+      });
+      await pc.setLocalDescription(offer);
+      sendCallSignal({
+        recipient_id: recipient.id,
+        signal_type: 'offer',
+        call_type: type,
+        signal_data: pc.localDescription,
+      });
+    } catch (err: any) {
+      setCallError(err.message || "Qo'ng'iroqni boshlab bo'lmadi.");
+      setTimeout(() => cleanupCall(false), 4000);
+    }
+  };
+
+  // Kiruvchi qo'ng'iroqqa javob berish
+  const acceptCall = async () => {
+    const offer = incomingOfferRef.current;
+    const remoteId = peerIdRef.current;
+    if (!offer || remoteId == null) return;
+
+    updateCallState('connecting');
+    try {
+      const stream = await getLocalStream(callTypeRef.current);
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      const pc = createPeerConnection(remoteId);
+      pcRef.current = pc;
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await flushPendingCandidates();
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendCallSignal({
+        recipient_id: remoteId,
+        signal_type: 'answer',
+        call_type: callTypeRef.current,
+        signal_data: pc.localDescription,
+      });
+      // 'connected' holati onconnectionstatechange orqali o'rnatiladi
+    } catch (err: any) {
+      setCallError(err.message || "Qo'ng'iroqqa javob berib bo'lmadi.");
+      setTimeout(() => cleanupCall(true), 3000);
+    }
+  };
+
+  // Kiruvchi qo'ng'iroqni rad etish
+  const rejectCall = () => {
+    if (peerIdRef.current != null) {
+      sendCallSignal({ recipient_id: peerIdRef.current, signal_type: 'reject', call_type: callTypeRef.current });
+    }
+    cleanupCall(false);
+  };
+
+  // Qo'ng'iroqni tugatish
+  const endCall = () => cleanupCall(true);
+
+  const toggleMute = () => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const next = !isMuted;
+    stream.getAudioTracks().forEach((t) => { t.enabled = !next; });
+    setIsMuted(next);
+  };
+
+  const toggleCam = () => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const next = !isCamOff;
+    stream.getVideoTracks().forEach((t) => { t.enabled = !next; });
+    setIsCamOff(next);
+  };
+
+  // Sahifadan chiqilganda qo'ng'iroq resurslarini bo'shatish
+  useEffect(() => {
+    return () => {
+      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+      if (pcRef.current) {
+        try {
+          pcRef.current.close();
+        } catch {
+          /* e'tiborsiz */
+        }
+      }
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   if (!isLoggedIn) {
     return (
@@ -414,19 +848,6 @@ function ChatContent() {
       </div>
     );
   }
-
-  const getRecipient = (conv: Conversation): Participant | undefined => {
-    return conv.participants.find((p) => p.id !== user?.id) || conv.participants[0];
-  };
-
-  const getRecipientName = (conv: Conversation) => {
-    const r = getRecipient(conv);
-    if (!r) return 'Muloqotdosh';
-    const fullName = `${r.first_name || ''} ${r.last_name || ''}`.trim();
-    return fullName || r.username || 'Foydalanuvchi';
-  };
-
-  const activeRecipient = activeConv ? getRecipient(activeConv) : null;
 
   return (
     <div className="flex flex-col gap-4 py-4 h-[calc(100vh-140px)] min-h-[580px]">
@@ -904,50 +1325,126 @@ function ChatContent() {
             </div>
           )}
 
-          {/* ══════════ CALL SIMULATION MODAL ══════════ */}
-          {isCalling && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 animate-fadeIn">
-              <div className="flex flex-col items-center gap-5 text-center max-w-sm w-full">
-                <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-800 border-4 border-blue-500/40 animate-pulse">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activeRecipient?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200'}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
+          {/* ══════════ QO'NG'IROQ MODALI (WebRTC) ══════════ */}
+          {callState !== 'idle' && (
+            <div className="absolute inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 animate-fadeIn">
+              {/* Masofaviy ovoz (audio-only qo'ng'iroqlar uchun) */}
+              <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 
-                <div>
-                  <h4 className="font-black text-xl text-white">
-                    {activeConv ? getRecipientName(activeConv) : 'Muloqotdosh'}
-                  </h4>
-                  <p className="text-xs text-blue-400 mt-1 font-semibold flex items-center justify-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
-                    {callActive ? 'Aloqa o\'rnatildi' : 'Qo\'ng\'iroq qilinmoqda...'}
-                  </p>
-                </div>
-
-                {callActive && callType === 'video' && (
-                  <div className="w-full h-44 rounded-2xl bg-zinc-900 border border-white/10 relative overflow-hidden flex items-center justify-center shadow-2xl">
+              <div className="flex flex-col items-center gap-5 text-center max-w-md w-full">
+                {/* Video ko'rinish — faqat video qo'ng'iroqda va ulanish bosqichida */}
+                {callType === 'video' && (callState === 'connected' || callState === 'connecting') ? (
+                  <div className="relative w-full aspect-video rounded-2xl bg-zinc-900 border border-white/10 overflow-hidden shadow-2xl">
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover bg-zinc-900"
+                    />
+                    {/* Mahalliy kamera ko'rinishi (kichik oyna) */}
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="absolute bottom-3 right-3 w-28 h-20 rounded-xl object-cover border border-white/20 bg-black/60 shadow-lg"
+                    />
+                    {isCamOff && (
+                      <div className="absolute bottom-3 right-3 w-28 h-20 rounded-xl bg-zinc-800/90 border border-white/20 flex items-center justify-center">
+                        <VideoOff size={20} className="text-zinc-400" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-800 border-4 border-blue-500/40 animate-pulse">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500"
-                      alt="video stream"
-                      className="w-full h-full object-cover opacity-80"
+                      src={callPeer?.avatar || activeRecipient?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200'}
+                      alt="avatar"
+                      className="w-full h-full object-cover"
                     />
-                    <span className="absolute bottom-2 left-3 bg-black/60 backdrop-blur px-2.5 py-1 rounded-lg text-white text-[10px] font-bold">
-                      Kamera yoqilgan
-                    </span>
                   </div>
                 )}
 
-                <button
-                  onClick={endCall}
-                  className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/40 hover:scale-110 transition-all"
-                  title="Qo'ng'iroqni tugatish"
-                >
-                  <PhoneOff size={24} />
-                </button>
+                <div>
+                  <h4 className="font-black text-xl text-white">
+                    {callPeer?.name || (activeConv ? getRecipientName(activeConv) : 'Muloqotdosh')}
+                  </h4>
+                  <p className="text-xs text-blue-400 mt-1 font-semibold flex items-center justify-center gap-1.5">
+                    {callState === 'connected' ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        {formatDuration(callDuration)}
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                        {callState === 'outgoing' && "Qo'ng'iroq qilinmoqda..."}
+                        {callState === 'incoming' && "Kiruvchi qo'ng'iroq..."}
+                        {callState === 'connecting' && 'Ulanmoqda...'}
+                      </>
+                    )}
+                  </p>
+                  {callError && (
+                    <p className="text-xs text-rose-400 mt-2 font-semibold flex items-center justify-center gap-1.5">
+                      <AlertTriangle size={13} /> {callError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Boshqaruv tugmalari */}
+                <div className="flex items-center gap-4 mt-1">
+                  {callState === 'incoming' ? (
+                    <>
+                      <button
+                        onClick={rejectCall}
+                        className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/40 hover:scale-110 transition-all"
+                        title="Rad etish"
+                      >
+                        <PhoneOff size={24} />
+                      </button>
+                      <button
+                        onClick={acceptCall}
+                        className="p-4 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/40 hover:scale-110 transition-all animate-bounce"
+                        title="Qabul qilish"
+                      >
+                        <PhoneIncoming size={24} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {callState === 'connected' && callType === 'video' && (
+                        <button
+                          onClick={toggleCam}
+                          className={`p-3.5 rounded-full text-white shadow-lg transition-all hover:scale-110 ${
+                            isCamOff ? 'bg-zinc-600 hover:bg-zinc-500' : 'bg-white/15 hover:bg-white/25'
+                          }`}
+                          title={isCamOff ? "Kamerani yoqish" : "Kamerani o'chirish"}
+                        >
+                          {isCamOff ? <VideoOff size={22} /> : <Video size={22} />}
+                        </button>
+                      )}
+                      {callState === 'connected' && (
+                        <button
+                          onClick={toggleMute}
+                          className={`p-3.5 rounded-full text-white shadow-lg transition-all hover:scale-110 ${
+                            isMuted ? 'bg-zinc-600 hover:bg-zinc-500' : 'bg-white/15 hover:bg-white/25'
+                          }`}
+                          title={isMuted ? "Ovozni yoqish" : "Ovozni o'chirish"}
+                        >
+                          {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
+                        </button>
+                      )}
+                      <button
+                        onClick={endCall}
+                        className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/40 hover:scale-110 transition-all"
+                        title="Qo'ng'iroqni tugatish"
+                      >
+                        <PhoneOff size={24} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

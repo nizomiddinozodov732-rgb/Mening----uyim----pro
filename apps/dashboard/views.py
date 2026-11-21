@@ -791,7 +791,7 @@ class AdminComplaintsView(APIView):
                     "id": c.accused.id,
                     "full_name": c.accused.get_full_name() or c.accused.username,
                     "avatar": c.accused.avatar.url if c.accused.avatar else None,
-                },
+                } if c.accused else None,
                 "created_at": c.created_at.strftime("%Y-%m-%d %H:%M"),
                 "updated_at": c.updated_at.strftime("%Y-%m-%d %H:%M"),
             })

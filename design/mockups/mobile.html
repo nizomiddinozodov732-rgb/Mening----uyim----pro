@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobil ko'rinish — Mening Uyim (maket)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script>
+  try { if (localStorage.getItem('mock-theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  function toggleTheme(){const r=document.documentElement;r.classList.toggle('dark');try{localStorage.setItem('mock-theme',r.classList.contains('dark')?'dark':'light')}catch(e){}}
+  function openDrawer(id){document.getElementById(id).classList.add('open');var s=document.getElementById(id+'-scrim');if(s)s.classList.add('open');}
+  function closeDrawer(id){document.getElementById(id).classList.remove('open');var s=document.getElementById(id+'-scrim');if(s)s.classList.remove('open');}
+  function toggleAcc(el){el.classList.toggle('open');}
+</script>
+
+<style>
+  /* ── Faqat ushbu maketga xos: telefon ramkalari ─────────────────────────── */
+  .phones { display:flex; flex-wrap:wrap; gap:32px; justify-content:center; }
+  .phone-cell { display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .phone {
+    width:340px; height:680px; flex-shrink:0; position:relative; overflow:hidden;
+    border-radius:42px; border:11px solid #101827; background:var(--bg);
+    box-shadow: var(--shadow-xl), 0 0 0 2px rgba(148,163,184,.25) inset;
+  }
+  .phone-screen { width:100%; height:100%; overflow:hidden; display:flex; flex-direction:column; position:relative; border-radius:31px; }
+  .notch { position:absolute; top:8px; left:50%; transform:translateX(-50%); width:100px; height:22px; background:#101827; border-radius:99px; z-index:60; }
+  .statusbar { display:flex; align-items:center; justify-content:space-between; padding:8px 20px 4px; font-size:11px; font-weight:700; color:var(--text-2); flex-shrink:0; }
+  .phone-caption { font-size:var(--fs-cap); font-weight:700; color:var(--text-2); }
+  .phone-caption span { display:block; font-weight:500; color:var(--text-3); font-size:var(--fs-micro); }
+
+  .mscroll { flex:1; overflow-y:auto; overflow-x:hidden; }
+  .mscroll::-webkit-scrollbar { width:0; }
+
+  /* Mobil navbar */
+  .m-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 16px 12px; flex-shrink:0; }
+
+  /* Pastki tab panel (bottom navigation) */
+  .tabbar {
+    flex-shrink:0; display:grid; grid-template-columns:repeat(5,1fr);
+    border-top:1px solid var(--border); background:color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter:blur(12px); padding:6px 4px 10px;
+  }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; border-radius:var(--r-md); font-size:10px; font-weight:700; color:var(--text-3); border:0; background:transparent; position:relative; }
+  .tab .tab-ico { font-size:17px; line-height:1; }
+  .tab.active { color:var(--primary); }
+  .tab.active .tab-ico { transform:translateY(-1px); }
+  .tab .tab-badge { position:absolute; top:0; right:14px; min-width:16px; height:16px; padding:0 4px; border-radius:99px; background:var(--danger); color:#fff; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+
+  /* Yon drawer (mobil navigatsiya) */
+  .drawer-scrim { position:absolute; inset:0; background:rgba(8,12,22,.5); backdrop-filter:blur(2px); z-index:70; opacity:0; pointer-events:none; transition:opacity .22s ease; }
+  .drawer-scrim.open { opacity:1; pointer-events:auto; }
+  .drawer {
+    position:absolute; top:0; left:0; bottom:0; width:80%; max-width:280px; z-index:80;
+    background:var(--surface); border-right:1px solid var(--border);
+    transform:translateX(-102%); transition:transform .26s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column; box-shadow:var(--shadow-xl);
+  }
+  .drawer.open { transform:none; }
+  .dgroup { border-bottom:1px solid var(--border); }
+  .dgroup-head { display:flex; align-items:center; justify-content:space-between; width:100%; padding:13px 8px; border:0; background:transparent; font-size:var(--fs-body); font-weight:600; color:var(--text-2); }
+  .dgroup-head .chev { transition:transform .2s ease; color:var(--text-3); font-size:12px; }
+  .dgroup.open .dgroup-head .chev { transform:rotate(90deg); }
+  .dsub { display:none; flex-direction:column; padding:0 8px 10px 18px; gap:2px; }
+  .dgroup.open .dsub { display:flex; }
+  .dsub a { padding:9px 10px; border-radius:var(--r-sm); font-size:var(--fs-cap); font-weight:600; color:var(--text-2); }
+  .dsub a:hover { background:var(--bg-2); color:var(--text); }
+
+  /* Bottom sheet (filtrlar) */
+  .sheet { position:absolute; left:0; right:0; bottom:0; z-index:75; background:var(--surface); border-top-left-radius:var(--r-xl); border-top-right-radius:var(--r-xl); box-shadow:var(--shadow-xl); border:1px solid var(--border); border-bottom:0; }
+  .sheet-grip { width:40px; height:4px; border-radius:99px; background:var(--border-2); margin:10px auto 4px; }
+
+  /* Mobil e'lon kartasi */
+  .m-card { display:flex; gap:12px; padding:12px; }
+  .m-thumb { width:104px; height:88px; border-radius:var(--r-md); flex-shrink:0; position:relative; overflow:hidden; }
+  .m-thumb .media-fav { width:28px; height:28px; top:6px; right:6px; }
+
+  /* Mobil chat */
+  .m-msg { display:flex; gap:8px; padding:0 14px; margin-bottom:10px; }
+  .m-msg.out { justify-content:flex-end; }
+  .m-composer { flex-shrink:0; display:flex; gap:8px; align-items:center; padding:10px 12px; border-top:1px solid var(--border); }
+
+  .day-sep { font-size:var(--fs-micro); color:var(--text-3); background:var(--surface); border:1px solid var(--border); padding:2px 10px; border-radius:var(--r-full); }
+
+  .kv { display:flex; align-items:center; justify-content:space-between; padding:11px 16px; border-bottom:1px solid var(--border); font-size:var(--fs-cap); }
+  .kv:last-child { border-bottom:0; }
+</style>
+
+<!-- ══ MOCKUP TOPBAR ══ -->
+<div class="mock-topbar">
+  <div class="center g3">
+    <span class="avatar avatar-sm">MU</span>
+    <strong class="t-h3">Mobil ko'rinish — responsive maketlar</strong>
+  </div>
+  <div class="center g2">
+    <a class="btn btn-ghost btn-sm" href="index.html">Dizayn tizimi</a>
+    <a class="btn btn-ghost btn-sm" href="home.html">Bosh sahifa</a>
+    <a class="btn btn-ghost btn-sm" href="properties.html">E'lonlar</a>
+    <a class="btn btn-ghost btn-sm" href="chat.html">Chat</a>
+    <button class="icon-btn icon-btn-outline" onclick="toggleTheme()" title="Tema" aria-label="Tema">◐</button>
+  </div>
+</div>
+
+<main class="wrap mt-8">
+
+  <div class="mock-note mb-6">
+    <strong>Mobil ko'rinish (responsive) — 4 ta asosiy ekran.</strong>
+    Breakpoint: <code>&le;640px</code> mobil, <code>641–1024px</code> planshet, <code>&gt;1024px</code> desktop.
+    Navigatsiya 3 ta guruhga qisqartirildi; mobilda <b>yon drawer</b> va <b>pastki tab panel</b> ishlatiladi.
+    Kartalar vertikal, filtrlar <b>bottom sheet</b> ko'rinishida, chat bir ustunli.
+    Yon tomondagi tugmalar drawer va filtr panelini ochadi.
+  </div>
+
+  <!-- Yaxshilanishlar ro'yxati -->
+  <section class="mb-8">
+    <h2 class="t-h1 mb-4">Mobil uchun asosiy yechimlar</h2>
+    <div class="grid g-4 g3">
+      <div class="card pad-4"><span class="badge badge-primary mb-4">Navigatsiya</span><p class="t-h3 mt-2">Drawer + pastki panel</p><p class="t-cap muted mt-2">6 ta gorizontal havola o'rniga yon drawer (guruhlangan) va 5 bandli bottom tab.</p></div>
+      <div class="card pad-4"><span class="badge badge-primary mb-4">Tegish maydoni</span><p class="t-h3 mt-2">44px minimal touch</p><p class="t-cap muted mt-2">Barcha interaktiv elementlar kamida 44×44px — barmoq bilan oson bosiladi.</p></div>
+      <div class="card pad-4"><span class="badge badge-primary mb-4">Filtrlar</span><p class="t-h3 mt-2">Bottom sheet</p><p class="t-cap muted mt-2">Yon panel mobilda yashiriladi, bottom sheet sifatida ochiladi.</p></div>
+      <div class="card pad-4"><span class="badge badge-primary mb-4">Kontent</span><p class="t-h3 mt-2">Bir ustunli grid</p><p class="t-cap muted mt-2">Ko'p ustunli gridlar mobilda 1 ustunga tushadi (avtomatik).</p></div>
+    </div>
+  </section>
+
+  <!-- ══ 4 TA TELEFON ══ -->
+  <section class="mb-8">
+    <h2 class="t-h1 mb-5">Ekranlar</h2>
+    <div class="phones">
+
+      <!-- ────── 1. BOSH SAHIFA + PASTKI PANEL ────── -->
+      <div class="phone-cell">
+        <div class="phone">
+          <span class="notch"></span>
+          <div class="phone-screen">
+            <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▰</span></div>
+            <div class="m-bar">
+              <a href="index.html" class="center g2">
+                <span style="width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px">⌂</span>
+                <span class="t-h3 gradient-text">Mening Uyim</span>
+              </a>
+              <div class="center g2">
+                <button class="icon-btn icon-btn-outline" aria-label="Tema" onclick="toggleTheme()">◐</button>
+                <button class="icon-btn icon-btn-outline" aria-label="Menyu" onclick="openDrawer('d1')">☰</button>
+              </div>
+            </div>
+
+            <div class="mscroll">
+              <!-- Hero (mobilga moslashtirilgan) -->
+              <div style="margin:0 16px;background:linear-gradient(135deg,#1e3a8a,#4f46e5);border-radius:var(--r-xl);padding:20px;color:#fff;position:relative;overflow:hidden">
+                <span class="badge" style="background:rgba(255,255,255,.16);color:#fff">12 000+ e'lon</span>
+                <h1 class="t-h1 mt-2" style="font-size:20px">Orzuingizdagi uyni toping</h1>
+                <div style="background:#fff;border-radius:var(--r-md);padding:6px;display:flex;gap:6px;margin-top:14px">
+                  <input class="input" placeholder="Hudud yoki kalit so'z" style="border:0;height:38px;font-size:13px" aria-label="Qidiruv">
+                  <button class="btn btn-primary" style="height:38px" aria-label="Qidirish">⌕</button>
+                </div>
+              </div>
+
+              <!-- Chips (gorizontal skroll) -->
+              <div class="wrapx g2" style="padding:16px 16px 4px;flex-wrap:nowrap;overflow-x:auto">
+                <button class="chip chip-active" style="flex-shrink:0">Barchasi</button>
+                <button class="chip" style="flex-shrink:0">Kvartira</button>
+                <button class="chip" style="flex-shrink:0">Hovli</button>
+                <button class="chip" style="flex-shrink:0">Yer</button>
+              </div>
+
+              <!-- Karta 1 -->
+              <article class="card p-0 card-hover" style="margin:12px 16px;overflow:hidden">
+                <div class="media" style="height:150px">
+                  <div style="width:100%;height:100%;background:linear-gradient(135deg,#93c5fd,#2563eb)"></div>
+                  <span class="badge badge-success media-tag">Sotiladi</span>
+                  <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+                </div>
+                <div class="pad-4">
+                  <span class="t-cap muted-2">Chilonzor, Toshkent</span>
+                  <h3 class="t-h3 mt-2">3 xonali kvartira, 78 m²</h3>
+                  <div class="between mt-3">
+                    <span style="font-weight:800;color:var(--primary)">78 000 $</span>
+                    <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.8</span></span>
+                  </div>
+                </div>
+              </article>
+
+              <!-- Karta 2 (gorizontal ixcham) -->
+              <article class="card m-card" style="margin:0 16px 16px">
+                <div class="m-thumb" style="background:linear-gradient(135deg,#fca5a5,#dc2626)">
+                  <span class="media-fav" aria-label="Sevimlilarga qo'shish" style="font-size:12px">♡</span>
+                </div>
+                <div class="grow" style="min-width:0">
+                  <span class="badge badge-warning">Ijara</span>
+                  <h3 class="t-h3 mt-2" style="font-size:14px">2 xonali kvartira</h3>
+                  <p class="t-micro muted-2 mt-2">Yunusobod · 54 m²</p>
+                  <p class="semi mt-2" style="color:var(--primary);font-size:14px">650 $<span class="t-micro muted-2">/oy</span></p>
+                </div>
+              </article>
+            </div>
+
+            <!-- PASTKI TAB PANEL -->
+            <nav class="tabbar" aria-label="Asosiy navigatsiya">
+              <button class="tab active"><span class="tab-ico">⌂</span>Bosh sahifa</button>
+              <button class="tab"><span class="tab-ico">⌕</span>Qidiruv</button>
+              <button class="tab"><span class="tab-ico">♡</span>Sevimli</button>
+              <button class="tab"><span class="tab-ico">✉</span>Chat<span class="tab-badge">3</span></button>
+              <button class="tab"><span class="tab-ico">◉</span>Profil</button>
+            </nav>
+          </div>
+
+          <!-- DRAWER -->
+          <div class="drawer-scrim" id="d1-scrim" onclick="closeDrawer('d1')"></div>
+          <aside class="drawer" id="d1">
+            <div class="statusbar" style="padding-top:14px"><span>Menyu</span><button class="icon-btn" onclick="closeDrawer('d1')" aria-label="Yopish">✕</button></div>
+            <div class="center g3" style="padding:8px 16px 16px;border-bottom:1px solid var(--border)">
+              <span class="avatar">AK</span>
+              <div><p class="semi t-cap">Aziz Karimov</p><p class="t-micro muted-2">+998 90 ••• 45 67</p></div>
+            </div>
+            <div class="grow" style="overflow-y:auto;padding:8px 12px">
+              <div class="dgroup open">
+                <button class="dgroup-head" onclick="toggleAcc(this.parentElement)">Ko'chmas mulk <span class="chev">›</span></button>
+                <div class="dsub"><a href="properties.html">Sotib olish</a><a href="properties.html">Ijara</a><a href="properties.html">Hovli / Kottedj</a><a href="properties.html">Yer maydoni</a></div>
+              </div>
+              <div class="dgroup">
+                <button class="dgroup-head" onclick="toggleAcc(this.parentElement)">Xizmatlar <span class="chev">›</span></button>
+                <div class="dsub"><a href="#">Ustalar</a><a href="#">Arxitektorlar</a><a href="#">Qurilish materiallari</a></div>
+              </div>
+              <a class="dgroup-head" href="#" style="text-decoration:none">Kalkulyator</a>
+              <a class="dgroup-head" href="#" style="text-decoration:none">Yangiliklar</a>
+            </div>
+            <div style="padding:12px;border-top:1px solid var(--border)">
+              <a class="btn btn-primary btn-block" href="#">+ E'lon joylash</a>
+            </div>
+          </aside>
+        </div>
+        <p class="phone-caption">Bosh sahifa<span>Bottom tab + drawer (☰)</span></p>
+      </div>
+
+      <!-- ────── 2. DRAWER OCHIQ ────── -->
+      <div class="phone-cell">
+        <div class="phone">
+          <span class="notch"></span>
+          <div class="phone-screen">
+            <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▰</span></div>
+            <div class="m-bar">
+              <span class="center g2">
+                <span style="width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px">⌂</span>
+                <span class="t-h3 gradient-text">Mening Uyim</span>
+              </span>
+              <button class="icon-btn icon-btn-outline" aria-label="Menyu">☰</button>
+            </div>
+            <div class="grow" style="padding:16px;filter:blur(1px);opacity:.6">
+              <div class="skeleton" style="height:120px;border-radius:var(--r-xl)"></div>
+              <div class="skeleton mt-4" style="height:16px;width:60%"></div>
+              <div class="skeleton mt-2" style="height:150px;border-radius:var(--r-lg)"></div>
+            </div>
+
+            <div class="drawer-scrim open"></div>
+            <aside class="drawer open" aria-label="Mobil navigatsiya">
+              <div class="statusbar" style="padding-top:14px"><span>Menyu</span><button class="icon-btn" aria-label="Yopish">✕</button></div>
+              <div class="center g3" style="padding:8px 16px 16px;border-bottom:1px solid var(--border)">
+                <span class="avatar">AK</span>
+                <div><p class="semi t-cap">Aziz Karimov</p><p class="t-micro muted-2">+998 90 ••• 45 67</p></div>
+              </div>
+              <div class="grow" style="overflow-y:auto;padding:8px 12px">
+                <a class="dgroup-head" href="#" style="text-decoration:none;background:var(--primary-l);color:var(--primary);border-radius:var(--r-sm)">Bosh sahifa</a>
+                <div class="dgroup">
+                  <button class="dgroup-head" onclick="toggleAcc(this.parentElement)">Ko'chmas mulk <span class="chev">›</span></button>
+                  <div class="dsub"><a href="properties.html">Sotib olish</a><a href="properties.html">Ijara</a><a href="properties.html">Hovli / Kottedj</a><a href="properties.html">Yer maydoni</a></div>
+                </div>
+                <div class="dgroup">
+                  <button class="dgroup-head" onclick="toggleAcc(this.parentElement)">Xizmatlar <span class="chev">›</span></button>
+                  <div class="dsub"><a href="#">Ustalar</a><a href="#">Arxitektorlar</a><a href="#">Qurilish materiallari</a></div>
+                </div>
+                <a class="dgroup-head" href="#" style="text-decoration:none;justify-content:flex-start">Kalkulyator</a>
+                <a class="dgroup-head" href="#" style="text-decoration:none;justify-content:flex-start">Yangiliklar</a>
+                <a class="dgroup-head" href="chat.html" style="text-decoration:none;justify-content:flex-start">Xabarlar <span class="badge badge-danger" style="margin-left:auto">3</span></a>
+              </div>
+              <div style="padding:12px;border-top:1px solid var(--border)">
+                <a class="btn btn-primary btn-block" href="#">+ E'lon joylash</a>
+              </div>
+            </aside>
+          </div>
+        </div>
+        <p class="phone-caption">Navigatsiya drawer<span>Guruhlangan, akkordeon</span></p>
+      </div>
+
+      <!-- ────── 3. E'LONLAR + BOTTOM SHEET ────── -->
+      <div class="phone-cell">
+        <div class="phone">
+          <span class="notch"></span>
+          <div class="phone-screen">
+            <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▰</span></div>
+            <div class="m-bar">
+              <span class="center g2"><button class="icon-btn icon-btn-outline" aria-label="Orqaga">‹</button><span class="t-h3">E'lonlar</span></span>
+              <button class="icon-btn icon-btn-outline" aria-label="Xarita">◈</button>
+            </div>
+            <div class="mscroll">
+              <!-- Saralash satri -->
+              <div class="between" style="padding:0 16px 12px">
+                <button class="chip chip-active" style="font-size:11px">1 248 ta</button>
+                <button class="chip" style="font-size:11px">▾ Saralash</button>
+                <button class="chip" style="font-size:11px">⚙ Filtr</button>
+              </div>
+
+              <div class="wrapx g2" style="padding:0 16px 12px">
+                <span class="badge badge-primary">Kvartira ✕</span>
+                <span class="badge badge-primary">Toshkent ✕</span>
+              </div>
+
+              <!-- Vertikal kartalar -->
+              <article class="card p-0 card-hover" style="margin:0 16px 12px;overflow:hidden">
+                <div class="media" style="height:140px">
+                  <div style="width:100%;height:100%;background:linear-gradient(135deg,#93c5fd,#2563eb)"></div>
+                  <span class="badge badge-success media-tag">Tekshirilgan</span>
+                  <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+                </div>
+                <div class="pad-4">
+                  <span class="t-cap muted-2">Chilonzor, Toshkent</span>
+                  <h3 class="t-h3 mt-2" style="font-size:15px">3 xonali kvartira, 78 m²</h3>
+                  <div class="wrapx g2 mt-2">
+                    <span class="badge">3 xona</span><span class="badge">78 m²</span><span class="badge">3/9</span>
+                  </div>
+                  <p class="semi mt-3" style="color:var(--primary);font-size:16px">78 000 $</p>
+                </div>
+              </article>
+
+              <article class="card m-card" style="margin:0 16px 12px;border:1px solid var(--border)">
+                <div class="m-thumb" style="background:linear-gradient(135deg,#6ee7b7,#059669)"></div>
+                <div class="grow" style="min-width:0">
+                  <span class="t-cap muted-2">Sergeli · 38 m²</span>
+                  <h3 class="t-h3 mt-2" style="font-size:14px">1 xonali studiya</h3>
+                  <div class="wrapx g2 mt-2"><span class="badge">1 xona</span><span class="badge">5/9</span></div>
+                  <p class="semi mt-2" style="color:var(--primary);font-size:14px">42 000 $</p>
+                </div>
+              </article>
+            </div>
+
+            <!-- BOTTOM SHEET: Filtrlar -->
+            <div class="sheet">
+              <div class="sheet-grip"></div>
+              <div class="between" style="padding:4px 16px 10px">
+                <p class="t-h3">Filtrlar</p>
+                <div class="center g2"><button class="btn btn-ghost btn-sm">Tozalash</button><button class="icon-btn" aria-label="Yopish">✕</button></div>
+              </div>
+              <div style="padding:0 16px 12px">
+                <p class="label mb-2">Turi</p>
+                <div class="wrapx g2"><button class="chip chip-active">Kvartira</button><button class="chip">Hovli</button><button class="chip">Yer</button></div>
+              </div>
+              <div style="padding:0 16px 16px">
+                <p class="label mb-2">Narx ($)</p>
+                <div class="center g2"><input class="input" placeholder="dan"><input class="input" placeholder="gacha"></div>
+              </div>
+              <div style="padding:0 16px 18px"><button class="btn btn-primary btn-block btn-lg">Natijalarni ko'rsatish</button></div>
+            </div>
+          </div>
+        </div>
+        <p class="phone-caption">E'lonlar ro'yxati<span>Bottom sheet filtrlar</span></p>
+      </div>
+
+      <!-- ────── 4. MOBIL CHAT ────── -->
+      <div class="phone-cell">
+        <div class="phone">
+          <span class="notch"></span>
+          <div class="phone-screen">
+            <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ ▰</span></div>
+            <div class="m-bar" style="border-bottom:1px solid var(--border);padding-bottom:10px">
+              <span class="center g2">
+                <button class="icon-btn icon-btn-outline" aria-label="Orqaga">‹</button>
+                <span class="avatar avatar-sm avatar-wrap">BS<span class="dot-online"></span></span>
+                <span><span class="semi t-cap" style="display:block">Bekzod S.</span><span class="t-micro muted-2">onlayn</span></span>
+              </span>
+              <span class="center g1">
+                <button class="icon-btn icon-btn-outline" aria-label="Ovozli qo'ng'iroq">☎</button>
+                <button class="icon-btn icon-btn-outline" aria-label="Video qo'ng'iroq">▣</button>
+              </span>
+            </div>
+
+            <div class="mscroll" style="background:var(--bg-2);padding:14px 0">
+              <div style="text-align:center;margin-bottom:12px"><span class="day-sep" style="display:inline-block">Bugun</span></div>
+
+              <div class="m-msg">
+                <span class="avatar avatar-sm">BS</span>
+                <div><div class="chat-bubble in">Assalomu alaykum! E'lon bo'yicha yozdim.</div><div class="t-micro muted-2" style="margin-top:3px">10:20</div></div>
+              </div>
+              <div class="m-msg out">
+                <div><div class="chat-bubble out">Va alaykum assalom! Marhamat.</div><div class="t-micro muted-2 tr" style="margin-top:3px">10:22 ✓✓</div></div>
+              </div>
+              <div class="m-msg">
+                <span class="avatar avatar-sm">BS</span>
+                <div><div class="chat-bubble in">Kvartira hali sotilmaganmi?</div><div class="t-micro muted-2" style="margin-top:3px">10:23</div></div>
+              </div>
+              <div class="m-msg out">
+                <div><div class="chat-bubble out" style="display:flex;align-items:center;gap:8px"><span>☎</span> Qo'ng'iroq · 2:14</div></div>
+              </div>
+            </div>
+
+            <div class="m-composer">
+              <button class="icon-btn icon-btn-outline" aria-label="Biriktirish">⌇</button>
+              <input class="input grow" placeholder="Xabar yozing..." aria-label="Xabar" style="height:42px">
+              <button class="btn btn-primary" style="width:42px;padding:0" aria-label="Yuborish">➤</button>
+            </div>
+          </div>
+        </div>
+        <p class="phone-caption">Chat (mobil)<span>Bir ustunli, katta touch</span></p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ BREAKPOINT JADVALI ══ -->
+  <section class="mb-12">
+    <h2 class="t-h1 mb-4">Responsive breakpointlar</h2>
+    <div class="grid g-2 g3">
+      <div class="card pad-4">
+        <p class="t-h3 mb-2">Mobil — ≤ 640px</p>
+        <div class="kv"><span class="muted">Navigatsiya</span><span class="semi">Drawer + bottom tab</span></div>
+        <div class="kv"><span class="muted">Grid</span><span class="semi">1 ustun</span></div>
+        <div class="kv"><span class="muted">Filtrlar</span><span class="semi">Bottom sheet</span></div>
+        <div class="kv"><span class="muted">Touch</span><span class="semi">≥ 44px</span></div>
+      </div>
+      <div class="card pad-4">
+        <p class="t-h3 mb-2">Planshet — 641–1024px</p>
+        <div class="kv"><span class="muted">Navigatsiya</span><span class="semi">Drawer + asosiy havolalar</span></div>
+        <div class="kv"><span class="muted">Grid</span><span class="semi">2 ustun</span></div>
+        <div class="kv"><span class="muted">Filtrlar</span><span class="semi">Yon panel</span></div>
+        <div class="kv"><span class="muted">Container</span><span class="semi">100% − 32px</span></div>
+      </div>
+      <div class="card pad-4">
+        <p class="t-h3 mb-2">Desktop — &gt; 1024px</p>
+        <div class="kv"><span class="muted">Navigatsiya</span><span class="semi">Guruhlangan gorizontal</span></div>
+        <div class="kv"><span class="muted">Grid</span><span class="semi">3–4 ustun</span></div>
+        <div class="kv"><span class="muted">Filtrlar</span><span class="semi">Sticky yon panel</span></div>
+        <div class="kv"><span class="muted">Container</span><span class="semi">1200px</span></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap" style="padding-top:32px;padding-bottom:32px">
+    <p class="t-cap muted-2">Mening Uyim — mobil maket · Interfeys maketlari seriyasining bir qismi</p>
+  </div>
+</footer>
+</body>
+</html>

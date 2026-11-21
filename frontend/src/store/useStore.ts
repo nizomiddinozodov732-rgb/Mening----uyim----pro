@@ -22,6 +22,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Eskirgan/nomaqbul token 401 qaytarsa — tokenni tozalab, tokensiz qayta so'raymiz.
+// Aks holda AllowAny endpointlar ham 401 bilan yopilib qoladi.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const original = error.config as (typeof error.config & { _retried?: boolean }) | undefined;
+    if (error.response?.status === 401 && _token && original && !original._retried) {
+      original._retried = true;
+      original.headers = original.headers ?? {};
+      delete (original.headers as Record<string, unknown>).Authorization;
+      useStore.getState().logout();
+      return api(original);
+    }
+    return Promise.reject(error);
+  }
+);
+
 export interface User {
   id: number;
   username: string;

@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from .serializers import RegisterSerializer, UserSerializer, UserProfileUpdateSerializer, AdminUserSerializer
 
 User = get_user_model()
@@ -86,6 +88,11 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         if len(new_password) < 8:
             return Response({'error': "Yangi parol kamida 8 ta belgidan iborat bo'lishi kerak"}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            validate_password(new_password, user=request.user)
+        except ValidationError as exc:
+            return Response({'error': ' '.join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+
         request.user.set_password(new_password)
         request.user.save(update_fields=['password'])
         return Response({'message': "Parol muvaffaqiyatli o'zgartirildi"})
@@ -106,7 +113,11 @@ class UserListView(generics.ListAPIView):
         profession = self.request.query_params.get('profession')
         if profession:
             queryset = queryset.filter(profession=profession)
+        # Faqat ruxsat etilgan maydonlar bo'yicha saralash (xato 500 ning oldini oladi)
+        allowed_ordering = {'rating', '-rating', 'date_joined', '-date_joined', 'username', '-username'}
         ordering = self.request.query_params.get('ordering', '-rating')
+        if ordering not in allowed_ordering:
+            ordering = '-rating'
         return queryset.order_by(ordering)
 
 

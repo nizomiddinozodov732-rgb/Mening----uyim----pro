@@ -100,10 +100,11 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = [
-            'title', 'property_type', 'price', 'location', 'latitude',
+            'id', 'title', 'property_type', 'price', 'location', 'latitude',
             'longitude', 'bedrooms', 'bathrooms', 'area', 'description',
-            'features', 'video_url', 'images'
+            'features', 'video_url', 'status', 'images'
         ]
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
@@ -114,3 +115,62 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
                 property=prop, image=img, is_primary=(i == 0), order=i
             )
         return prop
+
+
+class PropertyUpdateSerializer(serializers.ModelSerializer):
+    """Mavjud e'lonni tahrirlash (barcha maydonlar + rasmlar)."""
+    images = serializers.ListField(
+        child=serializers.ImageField(), write_only=True, required=False
+    )
+    keep_image_ids = serializers.JSONField(write_only=True, required=False)
+
+    class Meta:
+        model = Property
+        fields = [
+            'id', 'title', 'property_type', 'price', 'location', 'latitude',
+            'longitude', 'bedrooms', 'bathrooms', 'area', 'description',
+            'features', 'video_url', 'status', 'images', 'keep_image_ids'
+        ]
+        read_only_fields = ['id']
+
+    def validate_keep_image_ids(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Rasm ID lari ro'yxat bo'lishi kerak.")
+        try:
+            return [int(i) for i in value]
+        except (TypeError, ValueError):
+            raise serializers.ValidationError("Rasm ID lari butun son bo'lishi kerak.")
+
+    def update(self, instance, validated_data):
+        new_images = validated_data.pop('images', [])
+        keep_ids = validated_data.pop('keep_image_ids', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        existing = PropertyImage.objects.filter(property=instance)
+
+        # Foydalanuvchi saqlab qolgan rasmlardan tashqarisini o'chiramiz
+        if keep_ids is not None:
+            existing.exclude(id__in=keep_ids).delete()
+
+        # Yangi rasmlarni qo'shamiz
+        if new_images:
+            has_primary = PropertyImage.objects.filter(property=instance, is_primary=True).exists()
+            start = PropertyImage.objects.filter(property=instance).count()
+            for i, img in enumerate(new_images):
+                PropertyImage.objects.create(
+                    property=instance, image=img, order=start + i,
+                    is_primary=(not has_primary and i == 0),
+                )
+
+        # Har doim bitta asosiy rasm bo'lishini ta'minlaymiz
+        has_images = PropertyImage.objects.filter(property=instance).exists()
+        has_primary = PropertyImage.objects.filter(property=instance, is_primary=True).exists()
+        if has_images and not has_primary:
+            first = PropertyImage.objects.filter(property=instance).order_by('order', 'id').first()
+            first.is_primary = True
+            first.save(update_fields=['is_primary'])
+
+        return instance

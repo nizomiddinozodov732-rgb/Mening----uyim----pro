@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
   },
 
   // ── HTTP cache headers ─────────────────────────────────────
+  // Eslatma: `/_next/static/*` uchun production cache sarlavhasini Next.js
+  // o'zi to'g'ri (immutable) qo'yadi. Bu yerda qo'lda `Cache-Control` berish
+  // Next.js ogohlantirishini keltirib chiqaradi va kerak emas.
   async headers() {
     return [
       {
@@ -46,13 +49,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
           { key: 'X-Content-Type-Options',  value: 'nosniff' },
-        ],
-      },
-      {
-        // Next.js o'z statik fayllari — 1 yil cache
-        source: '/_next/static/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
     ];

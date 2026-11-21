@@ -1,0 +1,551 @@
+/* ============================================================================
+   "Mening Uyim" — Takomillashtirilgan dizayn tizimi (mockup uchun)
+   ----------------------------------------------------------------------------
+   Bu fayl mavjud loyihadagi `frontend/src/app/globals.css` ni asos qilib,
+   undagi nomuvofiqliklar (hardcoded ranglar, tasodifiy radius/o'lchamlar)
+   tuzatilgan holda qayta ishlab chiqildi.
+   Maqsad: 1) maketlarni brauzerda ochish imkonini berish, 2) ishlab
+   chiqishda to'g'ridan-to'g'ri nusxalab oladigan tayyor token/komponentlar.
+   ========================================================================= */
+
+/* ── 1. DIZAYN TOKENLARI ───────────────────────────────────────────────────── */
+:root {
+  /* Rang — semantik */
+  --bg:          #f4f6fb;
+  --bg-2:        #eef1f8;
+  --surface:     #ffffff;
+  --surface-2:   #f8faff;
+  --border:      #e4e9f4;
+  --border-2:    #cfd8ee;
+
+  --text:        #0d1117;
+  --text-2:      #46536b;
+  --text-3:      #6d7c95;   /* kontrast uchun #8896ab dan quyuqlashtirildi (AA) */
+
+  --primary:     #2563eb;
+  --primary-h:   #1d4ed8;
+  --primary-l:   #e3edfe;
+  --accent:      #6366f1;
+
+  --success:     #10b981;
+  --warning:     #f59e0b;
+  --danger:      #ef4444;
+  --info:        #0ea5e9;
+
+  /* Focus halqasi — accessibility uchun majburiy */
+  --ring:        0 0 0 3px rgba(37, 99, 235, .28);
+
+  /* Tipografiya shkalasi (izchil, 8 ta daraja) */
+  --font:        'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --fs-display:  2rem;      /* 32px */
+  --fs-h1:       1.5rem;    /* 24px */
+  --fs-h2:       1.25rem;   /* 20px */
+  --fs-h3:       1rem;      /* 16px */
+  --fs-body:     0.875rem;  /* 14px */
+  --fs-cap:      0.75rem;   /* 12px */
+  --fs-micro:    0.6875rem; /* 11px */
+
+  /* Radius shkalasi — HAR BIR semantik rol uchun qat'iy qiymat */
+  --r-sm:   8px;    /* badge, kichik chip */
+  --r-md:   12px;   /* input, button */
+  --r-lg:   16px;   /* card */
+  --r-xl:   24px;   /* modal, katta panel */
+  --r-full: 999px;  /* avatar, pill */
+
+  /* Bo'shliq shkalasi (4px asosida) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+
+  /* Soyalar */
+  --shadow-sm: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+  --shadow:    0 4px 16px rgba(15,23,42,.07), 0 2px 4px rgba(15,23,42,.04);
+  --shadow-lg: 0 12px 40px rgba(15,23,42,.10), 0 4px 12px rgba(15,23,42,.05);
+  --shadow-xl: 0 24px 64px rgba(37,99,235,.14), 0 8px 24px rgba(15,23,42,.07);
+
+  /* z-index shkalasi — barcha komponentlar SHU qiymatlardan foydalanadi */
+  --z-base: 0; --z-dropdown: 40; --z-sticky: 50; --z-overlay: 100;
+  --z-modal: 110; --z-toast: 120; --z-tooltip: 130;
+}
+
+.dark {
+  --bg:          #070b14;
+  --bg-2:        #0c1120;
+  --surface:     #111a2c;
+  --surface-2:   #0f172a;
+  --border:      rgba(255,255,255,.08);
+  --border-2:    rgba(255,255,255,.14);
+
+  --text:        #eef2fa;
+  --text-2:      #a3b1c9;
+  --text-3:      #78889f;
+
+  --primary:     #3b82f6;
+  --primary-h:   #60a5fa;
+  --primary-l:   rgba(59,130,246,.14);
+  --accent:      #818cf8;
+
+  --ring:        0 0 0 3px rgba(59,130,246,.35);
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.35);
+  --shadow:    0 4px 16px rgba(0,0,0,.45);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.55);
+  --shadow-xl: 0 24px 64px rgba(0,0,0,.6);
+}
+
+/* ── 2. BASE ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(ellipse at 0% 0%, rgba(37,99,235,.05) 0, transparent 60%),
+    radial-gradient(ellipse at 100% 0%, rgba(99,102,241,.04) 0, transparent 50%);
+}
+h1,h2,h3,h4 { margin: 0; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; }
+p { margin: 0; }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+button { font-family: inherit; cursor: pointer; }
+
+/* Focus — har bir interaktiv element uchun ko'rinadigan holat */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-md);
+}
+
+/* ── 3. TIPOGRAFIYA ────────────────────────────────────────────────────────── */
+.t-display { font-size: var(--fs-display); font-weight: 800; letter-spacing: -.02em; }
+.t-h1      { font-size: var(--fs-h1);      font-weight: 800; }
+.t-h2      { font-size: var(--fs-h2);      font-weight: 700; }
+.t-h3      { font-size: var(--fs-h3);      font-weight: 700; }
+.t-body    { font-size: var(--fs-body); }
+.t-cap     { font-size: var(--fs-cap); }
+.t-micro   { font-size: var(--fs-micro); }
+.muted     { color: var(--text-2); }
+.muted-2   { color: var(--text-3); }
+.bold      { font-weight: 700; }
+.semi      { font-weight: 600; }
+.upper     { text-transform: uppercase; letter-spacing: .08em; }
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── 4. LAYOUT YORDAMCHILARI ───────────────────────────────────────────────── */
+.wrap { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 var(--sp-5); }
+.flex { display: flex; }
+.col  { display: flex; flex-direction: column; }
+.center { display: flex; align-items: center; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.wrapx { display: flex; flex-wrap: wrap; }
+.g1 { gap: var(--sp-1); } .g2 { gap: var(--sp-2); } .g3 { gap: var(--sp-3); }
+.g4 { gap: var(--sp-4); } .g5 { gap: var(--sp-5); } .g6 { gap: var(--sp-6); } .g8 { gap: var(--sp-8); }
+.grid { display: grid; }
+.g-2 { grid-template-columns: repeat(2, 1fr); }
+.g-3 { grid-template-columns: repeat(3, 1fr); }
+.g-4 { grid-template-columns: repeat(4, 1fr); }
+.grow { flex: 1; }
+.hr { height: 1px; background: var(--border); border: 0; margin: 0; }
+
+/* ── 5. KOMPONENTLAR ───────────────────────────────────────────────────────── */
+
+/* 5.1 Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-5);
+  transition: box-shadow .22s ease, border-color .22s ease, transform .22s ease;
+}
+.card-hover { cursor: pointer; }
+.card-hover:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+}
+.card-flat { box-shadow: none; }
+.pad-4 { padding: var(--sp-4); }
+.pad-6 { padding: var(--sp-6); }
+
+/* 5.2 Button — qat'iy o'lcham va holatlar */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  font-weight: 600; font-size: var(--fs-body);
+  border-radius: var(--r-md); border: 1px solid transparent;
+  padding: 0 var(--sp-4); height: 38px;
+  transition: background .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease;
+  white-space: nowrap;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+.btn-sm { height: 32px; font-size: var(--fs-cap); padding: 0 var(--sp-3); border-radius: var(--r-sm); }
+.btn-lg { height: 46px; font-size: var(--fs-h3); padding: 0 var(--sp-6); border-radius: var(--r-md); }
+.btn-block { width: 100%; }
+
+.btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,.28); }
+.btn-primary:hover { background: var(--primary-h); box-shadow: 0 6px 20px rgba(37,99,235,.36); transform: translateY(-1px); }
+
+.btn-outline { background: transparent; border-color: var(--border-2); color: var(--text-2); }
+.btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+.btn-ghost { background: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: var(--bg-2); color: var(--text); }
+
+.btn-danger { background: var(--danger); color: #fff; box-shadow: 0 4px 14px rgba(239,68,68,.28); }
+.btn-danger:hover { filter: brightness(.94); }
+
+.btn-success { background: var(--success); color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,.28); }
+.btn-success:hover { filter: brightness(.94); }
+
+/* 5.3 Icon button */
+.icon-btn {
+  width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); border: 1px solid transparent;
+  background: transparent; color: var(--text-3);
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.icon-btn:hover { background: var(--bg-2); color: var(--text); }
+.icon-btn-outline { border-color: var(--border); }
+
+/* 5.4 Input / Field */
+.field { display: flex; flex-direction: column; gap: var(--sp-2); }
+.label { font-size: var(--fs-cap); font-weight: 600; color: var(--text-2); }
+.input, .select, .textarea {
+  width: 100%; font-family: var(--font); font-size: var(--fs-body); color: var(--text);
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 0 var(--sp-3); height: 40px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.textarea { height: auto; padding: var(--sp-3); resize: vertical; }
+.input::placeholder, .textarea::placeholder { color: var(--text-3); }
+.input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.hint { font-size: var(--fs-cap); color: var(--text-3); }
+.error-text { font-size: var(--fs-cap); color: var(--danger); font-weight: 600; }
+
+/* 5.5 Badge / Chip */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-micro); font-weight: 700;
+  padding: 3px 9px; border-radius: var(--r-full);
+  background: var(--bg-2); color: var(--text-2);
+}
+.badge-primary { background: var(--primary-l); color: var(--primary); }
+.badge-success { background: rgba(16,185,129,.14); color: var(--success); }
+.badge-warning { background: rgba(245,158,11,.16); color: var(--warning); }
+.badge-danger  { background: rgba(239,68,68,.14);  color: var(--danger); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-cap); font-weight: 600;
+  padding: 7px 14px; border-radius: var(--r-full);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  transition: all .18s ease; cursor: pointer;
+}
+.chip:hover { border-color: var(--primary); color: var(--primary); }
+.chip-active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* 5.6 Avatar */
+.avatar {
+  width: 38px; height: 38px; border-radius: var(--r-full); object-fit: cover;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: var(--fs-cap); flex-shrink: 0;
+}
+.avatar-sm { width: 30px; height: 30px; font-size: var(--fs-micro); }
+.avatar-lg { width: 56px; height: 56px; font-size: var(--fs-h3); }
+.avatar-xl { width: 92px; height: 92px; font-size: var(--fs-display); }
+.avatar-wrap { position: relative; }
+.dot-online {
+  position: absolute; right: 0; bottom: 0; width: 11px; height: 11px;
+  background: var(--success); border: 2px solid var(--surface); border-radius: var(--r-full);
+}
+
+/* 5.7 Navbar */
+.navbar {
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.navbar-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); height: 64px; }
+.nav-links { display: flex; align-items: center; gap: 2px; }
+.nav-link {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 12px; border-radius: var(--r-md);
+  font-size: var(--fs-body); font-weight: 600; color: var(--text-2);
+  transition: background .16s ease, color .16s ease;
+}
+.nav-link:hover { background: var(--bg-2); color: var(--text); }
+.nav-link.active { background: var(--primary-l); color: var(--primary); }
+.nav-menu { position: relative; }
+.nav-dropdown {
+  position: absolute; top: calc(100% + 8px); left: 0; min-width: 220px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); padding: var(--sp-2);
+  z-index: var(--z-dropdown); display: none;
+}
+.nav-menu:hover .nav-dropdown, .nav-menu:focus-within .nav-dropdown { display: block; }
+.nav-dropdown a {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border-radius: var(--r-sm); font-size: var(--fs-body); font-weight: 600; color: var(--text-2);
+}
+.nav-dropdown a:hover { background: var(--bg-2); color: var(--text); }
+
+/* 5.8 Breadcrumb */
+.breadcrumb { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-cap); color: var(--text-3); }
+.breadcrumb a:hover { color: var(--primary); }
+
+/* 5.9 Empty state */
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
+  text-align: center; padding: var(--sp-12) var(--sp-5); color: var(--text-3);
+}
+.empty-icon {
+  width: 64px; height: 64px; border-radius: var(--r-lg);
+  background: var(--primary-l); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* 5.10 Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--bg-2) 50%, var(--surface) 75%);
+  background-size: 800px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: var(--r-md);
+}
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+
+/* 5.11 Modal — yagona z-index va pattern */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  background: rgba(8, 12, 22, .58); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: var(--sp-5);
+}
+.modal-card {
+  width: 100%; max-width: 480px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl); padding: var(--sp-6);
+  animation: pop .22s ease both;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* 5.12 Toast */
+.toast {
+  position: fixed; right: var(--sp-5); bottom: var(--sp-5); z-index: var(--z-toast);
+  display: flex; align-items: center; gap: var(--sp-3);
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 4px solid var(--success);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  padding: var(--sp-3) var(--sp-4); max-width: 360px;
+}
+
+/* 5.13 Rating (yagona komponent) */
+.rating { display: inline-flex; align-items: center; gap: 3px; color: var(--warning); }
+.rating svg { width: 15px; height: 15px; fill: currentColor; }
+.rating-value { font-weight: 700; color: var(--text); font-size: var(--fs-cap); }
+
+/* 5.14 Switch */
+.switch {
+  width: 40px; height: 22px; border-radius: var(--r-full); background: var(--border-2);
+  position: relative; border: 0; transition: background .2s ease;
+}
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+  border-radius: var(--r-full); background: #fff; box-shadow: var(--shadow-sm); transition: transform .2s ease;
+}
+.switch[aria-checked="true"]::after { transform: translateX(18px); }
+
+/* 5.15 Property card media */
+.media { position: relative; border-radius: var(--r-lg); overflow: hidden; background: var(--bg-2); }
+.media img { width: 100%; height: 100%; object-fit: cover; }
+.media-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.55), transparent 55%); }
+.media-tag { position: absolute; top: 10px; left: 10px; }
+.media-fav {
+  position: absolute; top: 10px; right: 10px; width: 34px; height: 34px;
+  border-radius: var(--r-full); background: rgba(255,255,255,.9); border: 0;
+  display: flex; align-items: center; justify-content: center; color: var(--text-2);
+}
+/* Narx — barcha e'lon kartalarida bir xil (mobil va veb) */
+.prop-price { font-weight: 800; font-size: var(--fs-h3); }
+.prop-price .t-cap { font-weight: 600; }
+
+/* 5.16 Chat */
+.chat-bubble { max-width: 74%; padding: 9px 13px; border-radius: var(--r-lg); font-size: var(--fs-body); }
+.chat-bubble.in  { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: var(--r-sm); }
+.chat-bubble.out { background: var(--primary); color: #fff; border-bottom-right-radius: var(--r-sm); }
+
+.call-stage {
+  position: absolute; inset: 0; z-index: var(--z-modal);
+  background: rgba(8,12,22,.9); backdrop-filter: blur(10px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-5);
+}
+.call-video { position: relative; width: 100%; max-width: 520px; aspect-ratio: 16/9; border-radius: var(--r-lg); overflow: hidden; background: #0b1120; }
+.call-pip { position: absolute; right: var(--sp-3); bottom: var(--sp-3); width: 104px; height: 76px; border-radius: var(--r-md); overflow: hidden; border: 1px solid rgba(255,255,255,.2); }
+.call-actions { display: flex; align-items: center; gap: var(--sp-4); }
+.call-btn {
+  width: 56px; height: 56px; border-radius: var(--r-full); border: 0;
+  display: flex; align-items: center; justify-content: center; color: #fff; transition: transform .15s ease;
+}
+.call-btn:hover { transform: scale(1.08); }
+.call-btn.mute { background: rgba(255,255,255,.15); }
+.call-btn.mute.off { background: #52525b; }
+.call-btn.end { background: var(--danger); box-shadow: 0 10px 30px rgba(239,68,68,.4); }
+.call-btn.accept { background: var(--success); box-shadow: 0 10px 30px rgba(16,185,129,.4); }
+
+/* 5.17 Footer */
+.footer { margin-top: var(--sp-12); border-top: 1px solid var(--border); background: var(--surface-2); }
+.footer-link { display: block; font-size: var(--fs-body); color: var(--text-2); padding: 4px 0; transition: color .16s; }
+.footer-link:hover { color: var(--primary); }
+
+/* ── 6. ANIMATSIYALAR ──────────────────────────────────────────────────────── */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes pulseRing { 0% { transform: scale(.9); opacity: .7; } 100% { transform: scale(1.6); opacity: 0; } }
+.anim-up { animation: fadeUp .45s ease both; }
+.pulse-dot { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--primary); position: relative; }
+.pulse-dot::after { content: ''; position: absolute; inset: 0; border-radius: var(--r-full); background: var(--primary); animation: pulseRing 1.6s ease-out infinite; }
+
+/* ── 7. MOCKUP "SHELL" (faqat namoyish uchun) ──────────────────────────────── */
+.mock-note {
+  background: var(--surface); border: 1px dashed var(--border-2); border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5); color: var(--text-2); font-size: var(--fs-cap);
+}
+.mock-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border);
+  background: var(--surface-2); position: sticky; top: 0; z-index: var(--z-sticky);
+}
+
+/* ── 8. RESPONSIVE ─────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .g-4 { grid-template-columns: repeat(2, 1fr); }
+  .g-3 { grid-template-columns: repeat(2, 1fr); }
+  .nav-links { display: none; }
+}
+@media (max-width: 640px) {
+  .wrap { padding: 0 var(--sp-4); }
+  .g-4, .g-3, .g-2 { grid-template-columns: 1fr; }
+  .hide-sm { display: none; }
+  .call-video { aspect-ratio: 3/4; }
+}
+
+/* Utility */
+.w-100 { width: 100%; }
+.mt-2 { margin-top: var(--sp-2); } .mt-4 { margin-top: var(--sp-4); } .mt-6 { margin-top: var(--sp-6); }
+.mt-8 { margin-top: var(--sp-8); } .mt-12 { margin-top: var(--sp-12); }
+.mb-2 { margin-bottom: var(--sp-2); } .mb-4 { margin-bottom: var(--sp-4); } .mb-6 { margin-bottom: var(--sp-6); }
+.p-0 { padding: 0; }
+.relative { position: relative; }
+.tc { text-align: center; }
+.tr { text-align: right; }
+
+/* ── 9. VEB ↔ MOBIL MOSLIK (web shell) ───────────────────────────────────────
+   Mobil maketda tasdiqlangan navigatsiya va o'zaro ta'sir naqshlari
+   veb-sahifalarda aynan takrorlanadi:
+     • ≤ 1024px — yon drawer (guruhlangan akkordeon) + filter paneli yopiladi
+     • ≤  640px — pastki tab panel, filtrlar bottom sheet ko'rinishida
+   Shu tarzda veb va mobil versiyalar bir xil vizual til va UX beradi.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* 9.1 Ko'rsatish yordamchilari
+   .desk-only — default holatda ko'rinadi va elementning o'z `display` qiymatini
+   SAQLAYDI (btn/badge/nav buzilmasligi uchun); faqat ≤1024px da yashiriladi. */
+.only-lg   { display: none; }         /* ≤1024px da ko'rinadi */
+.only-sm   { display: none; }         /* ≤ 900px da ko'rinadi */
+
+/* 9.2 Yon drawer — mobil navigatsiya */
+.wscrim {
+  position: fixed; inset: 0; z-index: var(--z-overlay);
+  background: rgba(8,12,22,.5); backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none; transition: opacity .22s ease;
+}
+.wscrim.open { opacity: 1; pointer-events: auto; }
+.wdrawer {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 82%; max-width: 300px;
+  z-index: var(--z-modal); background: var(--surface);
+  border-right: 1px solid var(--border); box-shadow: var(--shadow-xl);
+  transform: translateX(-102%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column;
+}
+.wdrawer.open { transform: none; }
+.wgroup { border-bottom: 1px solid var(--border); }
+.wgroup-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 48px; padding: 12px 16px; border: 0; background: transparent;
+  font-family: inherit; font-size: var(--fs-body); font-weight: 600; color: var(--text-2);
+  text-align: left; transition: background .16s ease, color .16s ease;
+}
+.wgroup-head:hover { background: var(--bg-2); color: var(--text); }
+.wgroup-head.active { background: var(--primary-l); color: var(--primary); }
+.wgroup-head .chev { transition: transform .2s ease; color: var(--text-3); font-size: 12px; }
+.wgroup.open .wgroup-head .chev { transform: rotate(90deg); }
+.wsub { display: none; flex-direction: column; padding: 0 12px 10px; gap: 2px; }
+.wgroup.open .wsub { display: flex; }
+.wsub a {
+  padding: 10px 12px; border-radius: var(--r-sm);
+  font-size: var(--fs-body); font-weight: 600; color: var(--text-2);
+}
+.wsub a:hover { background: var(--bg-2); color: var(--text); }
+
+/* 9.3 Pastki tab panel — ≤640px da ko'rinadi */
+.wtabbar { display: none; }
+.wtab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 48px; padding: 6px 2px; border: 0; background: transparent; border-radius: var(--r-md);
+  font-family: inherit; font-size: 10px; font-weight: 700; color: var(--text-3); position: relative;
+}
+.wtab .wtab-ico { font-size: 18px; line-height: 1; }
+.wtab.active { color: var(--primary); }
+.wtab-badge {
+  position: absolute; top: 2px; left: 50%; margin-left: 6px;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px;
+  background: var(--danger); color: #fff; font-size: 9px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* 9.4 Bottom sheet grip (filtrlar uchun) */
+.wsheet-grip { width: 40px; height: 4px; border-radius: 99px; background: var(--border-2); margin: 10px auto 4px; flex-shrink: 0; }
+
+/* 9.5 ≤1024px — drawer yoqiladi, desktop menyu yopiladi */
+@media (max-width: 1024px) {
+  .desk-only { display: none !important; }
+  .only-lg   { display: inline-flex; }
+}
+@media (min-width: 1025px) {
+  .wdrawer, .wscrim { display: none !important; }
+}
+
+/* 9.6 ≤900px — tor ekranda ixcham yordamchi (masalan, "orqaga") */
+@media (max-width: 900px) {
+  .only-sm { display: inline-flex; }
+}
+
+/* 9.7 ≤640px — pastki tab panel va tegish maydonlari */
+@media (max-width: 640px) {
+  .navbar-inner { height: 56px; }
+  .wtabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-sticky);
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(12px);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Tegish maydoni ≥ 44px — barmoq bilan oson bosiladi (mobil standart) */
+  .btn { height: 44px; padding: 0 var(--sp-5); }
+  .btn-sm { height: 40px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .input, .select { height: 46px; }
+  .nav-link, .footer-link, .wgroup-head { min-height: 44px; }
+  /* Pastki panel kontent ustidan tushmasligi uchun */
+  .footer { margin-bottom: 74px; }
+}

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E'lonlar ro'yxati — Mening Uyim (maket)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script>
+  try { if (localStorage.getItem('mock-theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  function toggleTheme(){const r=document.documentElement;r.classList.toggle('dark');try{localStorage.setItem('mock-theme',r.classList.contains('dark')?'dark':'light')}catch(e){}}
+  function openDrawer(){document.getElementById('wdrawer').classList.add('open');document.getElementById('wscrim').classList.add('open');}
+  function closeDrawer(){document.getElementById('wdrawer').classList.remove('open');document.getElementById('wscrim').classList.remove('open');}
+  function toggleGroup(el){el.parentElement.classList.toggle('open');}
+  // ≤1024px da filtrlar bottom sheet ko'rinishida ochiladi
+  function openSheet(){document.getElementById('filters').classList.add('open');document.getElementById('fsheet-scrim').classList.add('open');}
+  function closeSheet(){document.getElementById('filters').classList.remove('open');document.getElementById('fsheet-scrim').classList.remove('open');}
+  function showTab(id){document.getElementById('grid').style.display=id==='grid'?'grid':'none';document.getElementById('empty').style.display=id==='empty'?'flex':'none';}
+</script>
+
+<style>
+  /* ── Natijalar tarmog'i: yon panel + ro'yxat ── */
+  .listing-grid { display:grid; grid-template-columns: 280px 1fr; gap:24px; align-items:start; }
+  .filters-panel { position: sticky; top: 84px; align-self: start; }
+  .facet { padding-bottom:16px; margin-bottom:16px; border-bottom:1px solid var(--border); }
+  .facet:last-child { border-bottom:0; margin-bottom:0; padding-bottom:0; }
+  .filter-toggle { display: none; }  /* faqat ≤1024px da ko'rinadi */
+
+  /* ── ≤1024px: filtrlar bottom sheet ── */
+  @media (max-width:1024px){
+    .listing-grid { grid-template-columns: 1fr; }
+    .filter-toggle { display: inline-flex; }
+    .filters-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: var(--z-modal);
+      width: 100%; max-height: 88vh; overflow-y: auto; padding: var(--sp-5);
+      border-radius: var(--r-xl) var(--r-xl) 0 0; border: 0; border-top: 1px solid var(--border);
+      box-shadow: var(--shadow-xl);
+      transform: translateY(102%); transition: transform .28s cubic-bezier(.4,0,.2,1);
+    }
+    .filters-panel.open { transform: none; }
+  }
+  @media (max-width:640px){
+    /* Barmoq uchun oson bosiladigan filtr elementlari */
+    .chip { min-height: 40px; padding: 8px 16px; }
+    .results-head { position: sticky; top: 56px; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); padding: var(--sp-2) 0; }
+  }
+</style>
+
+<!-- ══ NAVBAR — barcha veb-sahifalarda bir xil guruhlangan tuzilma ══ -->
+<header class="navbar">
+  <div class="wrap navbar-inner">
+    <a href="index.html" class="center g2">
+      <span style="width:34px;height:34px;border-radius:var(--r-md);background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:#fff">⌂</span>
+      <span class="t-h3 gradient-text">Mening Uyim</span>
+      <span class="badge badge-primary desk-only">PRO</span>
+    </a>
+
+    <nav class="nav-links desk-only" aria-label="Asosiy navigatsiya">
+      <a class="nav-link" href="home.html">Bosh sahifa</a>
+
+      <div class="nav-menu">
+        <button class="nav-link active" aria-haspopup="true">Ko'chmas mulk ▾</button>
+        <div class="nav-dropdown">
+          <a href="properties.html">Sotib olish</a>
+          <a href="properties.html">Ijara</a>
+          <a href="properties.html">Hovli / Kottedj</a>
+          <a href="properties.html">Yer maydoni</a>
+        </div>
+      </div>
+
+      <div class="nav-menu">
+        <button class="nav-link" aria-haspopup="true">Xizmatlar ▾</button>
+        <div class="nav-dropdown">
+          <a href="#">Ustalar</a>
+          <a href="#">Arxitektorlar</a>
+          <a href="#">Qurilish materiallari</a>
+        </div>
+      </div>
+
+      <a class="nav-link" href="#">Kalkulyator</a>
+    </nav>
+
+    <div class="center g2">
+      <a class="btn btn-primary btn-sm desk-only" href="#">+ E'lon joylash</a>
+      <a class="icon-btn icon-btn-outline" href="#" aria-label="Sevimlilar">♡</a>
+      <a class="icon-btn icon-btn-outline" href="chat.html" aria-label="Xabarlar">✉</a>
+      <button class="icon-btn icon-btn-outline" onclick="toggleTheme()" aria-label="Tema">◐</button>
+      <a href="#" class="center g2 desk-only" style="border:1px solid var(--border);border-radius:var(--r-md);padding:4px 10px 4px 4px">
+        <span class="avatar avatar-sm">AK</span><span class="t-cap semi">Aziz</span>
+      </a>
+      <button class="icon-btn icon-btn-outline only-lg" onclick="openDrawer()" aria-label="Menyu" aria-expanded="false">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ YON DRAWER (≤1024px) ══ -->
+<div class="wscrim" id="wscrim" onclick="closeDrawer()"></div>
+<aside class="wdrawer" id="wdrawer" aria-label="Mobil navigatsiya">
+  <div class="between" style="padding:14px 16px;border-bottom:1px solid var(--border)">
+    <span class="center g3">
+      <span class="avatar">AK</span>
+      <span><span class="semi t-cap" style="display:block">Aziz Karimov</span><span class="t-micro muted-2">+998 90 ••• 45 67</span></span>
+    </span>
+    <button class="icon-btn" onclick="closeDrawer()" aria-label="Yopish">✕</button>
+  </div>
+  <nav class="grow" style="overflow-y:auto;padding:8px 0">
+    <a class="wgroup-head" href="home.html">Bosh sahifa</a>
+    <div class="wgroup open">
+      <button class="wgroup-head active" onclick="toggleGroup(this)" aria-expanded="true">Ko'chmas mulk <span class="chev">›</span></button>
+      <div class="wsub">
+        <a href="properties.html">Sotib olish</a>
+        <a href="properties.html">Ijara</a>
+        <a href="properties.html">Hovli / Kottedj</a>
+        <a href="properties.html">Yer maydoni</a>
+      </div>
+    </div>
+    <div class="wgroup">
+      <button class="wgroup-head" onclick="toggleGroup(this)" aria-expanded="false">Xizmatlar <span class="chev">›</span></button>
+      <div class="wsub">
+        <a href="#">Ustalar</a>
+        <a href="#">Arxitektorlar</a>
+        <a href="#">Qurilish materiallari</a>
+      </div>
+    </div>
+    <a class="wgroup-head" href="#">Kalkulyator</a>
+    <a class="wgroup-head" href="#">Yangiliklar</a>
+    <a class="wgroup-head" href="chat.html">Xabarlar <span class="badge badge-danger">3</span></a>
+  </nav>
+  <div style="padding:12px;border-top:1px solid var(--border)">
+    <a class="btn btn-primary btn-block" href="#">+ E'lon joylash</a>
+  </div>
+</aside>
+
+<main class="wrap mt-5">
+
+  <!-- Breadcrumb -->
+  <nav class="breadcrumb mb-4" aria-label="Breadcrumb">
+    <a href="home.html">Bosh sahifa</a><span>/</span><a href="properties.html">Ko'chmas mulk</a><span>/</span><span class="muted-2">Toshkent</span>
+  </nav>
+
+  <!-- Sarlavha + asboblar -->
+  <div class="results-head between wrapx g3 mb-4">
+    <div>
+      <h1 class="t-h1">Toshkentda ko'chmas mulk</h1>
+      <p class="t-cap muted mt-2">1 248 ta e'lon topildi</p>
+    </div>
+    <div class="center g2">
+      <button class="btn btn-outline filter-toggle" onclick="openSheet()" aria-label="Filtrlarni ochish">⚙ Filtrlar</button>
+      <select class="select desk-only" style="width:auto" aria-label="Saralash">
+        <option>Yangi qo'shilgan</option><option>Narx: arzon → qimmat</option><option>Narx: qimmat → arzon</option><option>Reyting</option>
+      </select>
+      <div class="center g1 desk-only">
+        <button class="icon-btn icon-btn-outline" onclick="showTab('grid')" title="Ro'yxat" aria-label="Ro'yxat ko'rinishi">▤</button>
+        <button class="icon-btn icon-btn-outline" onclick="showTab('empty')" title="Bo'sh holat" aria-label="Bo'sh holatni ko'rsatish">◻</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="listing-grid">
+
+    <!-- ══ FILTRLAR — >1024px: yon panel, ≤1024px: bottom sheet ══ -->
+    <div class="wscrim" id="fsheet-scrim" onclick="closeSheet()"></div>
+    <aside class="card filters-panel" id="filters" aria-label="Filtrlar">
+      <span class="wsheet-grip" aria-hidden="true"></span>
+      <div class="between mb-4">
+        <p class="t-h3">Filtrlar</p>
+        <button class="icon-btn only-lg" onclick="closeSheet()" aria-label="Yopish">✕</button>
+        <button class="btn btn-ghost btn-sm desk-only">Tozalash</button>
+      </div>
+
+      <div class="facet">
+        <p class="label mb-2">Turi</p>
+        <div class="wrapx g2">
+          <button class="chip chip-active">Kvartira</button>
+          <button class="chip">Hovli</button>
+          <button class="chip">Yer</button>
+          <button class="chip">Ofis</button>
+        </div>
+      </div>
+
+      <div class="facet">
+        <p class="label mb-2">Narx ($)</p>
+        <div class="center g2">
+          <input class="input" placeholder="dan" aria-label="Narx dan">
+          <input class="input" placeholder="gacha" aria-label="Narx gacha">
+        </div>
+      </div>
+
+      <div class="facet">
+        <p class="label mb-2">Xonalar soni</p>
+        <div class="wrapx g2">
+          <button class="chip">1</button><button class="chip chip-active">2</button>
+          <button class="chip">3</button><button class="chip">4+</button>
+        </div>
+      </div>
+
+      <div class="facet">
+        <p class="label mb-2">Maydon (m²)</p>
+        <input type="range" min="20" max="300" value="120" style="width:100%" aria-label="Maydon">
+        <div class="between t-micro muted-2"><span>20</span><span>300</span></div>
+      </div>
+
+      <div class="between">
+        <div class="col">
+          <span class="t-cap semi">Faqat tekshirilgan</span>
+          <span class="t-micro muted-2">Tasdiqlangan e'lonlar</span>
+        </div>
+        <button class="switch" role="switch" aria-checked="true" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked')==='true'?'false':'true')"></button>
+      </div>
+
+      <button class="btn btn-primary btn-block mt-6" onclick="closeSheet()">Natijalarni ko'rsatish</button>
+    </aside>
+
+    <!-- ══ NATIJALAR ══ -->
+    <section>
+      <!-- Faol filtrlar -->
+      <div class="wrapx g2 mb-4">
+        <span class="badge badge-primary">Kvartira ✕</span>
+        <span class="badge badge-primary">2 xona ✕</span>
+        <span class="badge badge-primary">Toshkent ✕</span>
+      </div>
+
+      <div class="grid g-2" id="grid">
+        <!-- Card 1 -->
+        <article class="card p-0 card-hover" style="overflow:hidden">
+          <div class="media" style="height:200px">
+            <div style="width:100%;height:100%;background:linear-gradient(135deg,#93c5fd,#2563eb)"></div>
+            <span class="badge badge-success media-tag">Tekshirilgan</span>
+            <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+          </div>
+          <div class="pad-4">
+            <div class="between">
+              <span class="t-cap muted-2">Chilonzor, Toshkent</span>
+              <span class="badge badge-primary">Kvartira</span>
+            </div>
+            <h3 class="t-h3 mt-2">3 xonali kvartira, 78 m²</h3>
+            <div class="wrapx g2 mt-2">
+              <span class="badge">3 xona</span><span class="badge">78 m²</span><span class="badge">3/9 qavat</span>
+            </div>
+            <div class="between mt-4">
+              <span class="prop-price" style="color:var(--primary)">78 000 $</span>
+              <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.8</span></span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 2 -->
+        <article class="card p-0 card-hover" style="overflow:hidden">
+          <div class="media" style="height:200px">
+            <div style="width:100%;height:100%;background:linear-gradient(135deg,#fca5a5,#dc2626)"></div>
+            <span class="badge badge-warning media-tag">Ijara</span>
+            <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+          </div>
+          <div class="pad-4">
+            <div class="between">
+              <span class="t-cap muted-2">Yunusobod, Toshkent</span>
+              <span class="badge badge-primary">Kvartira</span>
+            </div>
+            <h3 class="t-h3 mt-2">2 xonali kvartira, 54 m²</h3>
+            <div class="wrapx g2 mt-2">
+              <span class="badge">2 xona</span><span class="badge">54 m²</span><span class="badge">7/12 qavat</span>
+            </div>
+            <div class="between mt-4">
+              <span class="prop-price" style="color:var(--primary)">650 $<span class="t-cap muted-2">/oy</span></span>
+              <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.5</span></span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 3 -->
+        <article class="card p-0 card-hover" style="overflow:hidden">
+          <div class="media" style="height:200px">
+            <div style="width:100%;height:100%;background:linear-gradient(135deg,#6ee7b7,#059669)"></div>
+            <span class="badge badge-success media-tag">Tekshirilgan</span>
+            <button class="media-fav" aria-label="Sevimlilarga qo'shish">♥</button>
+          </div>
+          <div class="pad-4">
+            <div class="between">
+              <span class="t-cap muted-2">Mirzo Ulug'bek, Toshkent</span>
+              <span class="badge badge-primary">Kvartira</span>
+            </div>
+            <h3 class="t-h3 mt-2">4 xonali kvartira, 102 m²</h3>
+            <div class="wrapx g2 mt-2">
+              <span class="badge">4 xona</span><span class="badge">102 m²</span><span class="badge">2/16 qavat</span>
+            </div>
+            <div class="between mt-4">
+              <span class="prop-price" style="color:var(--primary)">120 000 $</span>
+              <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.9</span></span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 4 -->
+        <article class="card p-0 card-hover" style="overflow:hidden">
+          <div class="media" style="height:200px">
+            <div style="width:100%;height:100%;background:linear-gradient(135deg,#c4b5fd,#7c3aed)"></div>
+            <span class="badge badge-success media-tag">Yangi</span>
+            <button class="media-fav" aria-label="Sevimlilarga qo'shish">♡</button>
+          </div>
+          <div class="pad-4">
+            <div class="between">
+              <span class="t-cap muted-2">Sergeli, Toshkent</span>
+              <span class="badge badge-primary">Kvartira</span>
+            </div>
+            <h3 class="t-h3 mt-2">1 xonali studiya, 38 m²</h3>
+            <div class="wrapx g2 mt-2">
+              <span class="badge">1 xona</span><span class="badge">38 m²</span><span class="badge">5/9 qavat</span>
+            </div>
+            <div class="between mt-4">
+              <span class="prop-price" style="color:var(--primary)">42 000 $</span>
+              <span class="rating"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span class="rating-value">4.3</span></span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- Bo'sh holat -->
+      <div class="empty" id="empty" style="display:none">
+        <span class="empty-icon">⌕</span>
+        <p class="t-h2">Mos e'lon topilmadi</p>
+        <p class="t-cap" style="max-width:340px">Filtrlarni o'zgartirib ko'ring yoki boshqa hududni tanlang.</p>
+        <button class="btn btn-outline mt-2">Filtrlarni tozalash</button>
+      </div>
+
+      <!-- Pagination -->
+      <div class="center g2 mt-8" style="justify-content:center">
+        <button class="icon-btn icon-btn-outline" aria-label="Oldingi">‹</button>
+        <button class="btn btn-primary btn-sm">1</button>
+        <button class="btn btn-outline btn-sm">2</button>
+        <button class="btn btn-outline btn-sm">3</button>
+        <span class="muted-2">…</span>
+        <button class="btn btn-outline btn-sm">12</button>
+        <button class="icon-btn icon-btn-outline" aria-label="Keyingi">›</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap" style="padding:24px 0"><p class="t-micro muted-2">© 2026 Mening Uyim · E'lonlar maketi</p></div>
+</footer>
+
+<!-- ══ PASTKI TAB PANEL (≤640px) ══ -->
+<nav class="wtabbar" aria-label="Asosiy navigatsiya">
+  <a class="wtab" href="home.html"><span class="wtab-ico">⌂</span>Bosh sahifa</a>
+  <a class="wtab active" href="properties.html" aria-current="page"><span class="wtab-ico">⌕</span>Qidiruv</a>
+  <a class="wtab" href="#"><span class="wtab-ico">♡</span>Sevimli</a>
+  <a class="wtab" href="chat.html"><span class="wtab-ico">✉</span>Chat<span class="wtab-badge">3</span></a>
+  <a class="wtab" href="#"><span class="wtab-ico">◉</span>Profil</a>
+</nav>
+</body>
+</html>

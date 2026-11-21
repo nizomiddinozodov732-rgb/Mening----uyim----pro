@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dizayn tizimi — Mening Uyim (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script>
+  // Tema holatini tiklash (mockup demo uchun)
+  try { if (localStorage.getItem('mock-theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  function toggleTheme() {
+    const r = document.documentElement;
+    r.classList.toggle('dark');
+    try { localStorage.setItem('mock-theme', r.classList.contains('dark') ? 'dark' : 'light'); } catch (e) {}
+  }
+</script>
+
+<div class="mock-topbar">
+  <div class="center g3">
+    <span class="avatar avatar-sm">MU</span>
+    <strong class="t-h3">Mening Uyim — Dizayn tizimi va maketlar</strong>
+  </div>
+  <div class="center g2">
+    <a class="btn btn-ghost btn-sm" href="home.html">Bosh sahifa</a>
+    <a class="btn btn-ghost btn-sm" href="properties.html">E'lonlar</a>
+    <a class="btn btn-ghost btn-sm" href="chat.html">Chat</a>
+    <a class="btn btn-ghost btn-sm" href="mobile.html">Mobil</a>
+    <button class="icon-btn icon-btn-outline" onclick="toggleTheme()" title="Tema">◐</button>
+  </div>
+</div>
+
+<main class="wrap mt-8">
+
+  <div class="mock-note mb-6">
+    <strong>Bu sahifa — tirik dizayn tizimi (living style guide).</strong>
+    Barcha tokenlar, komponentlar va holatlar shu yerda. Ishlab chiqishda
+    <code>styles.css</code> dagi o'zgaruvchilar va komponent klasslarini to'g'ridan-to'g'ri
+    <code>globals.css</code> ga ko'chirish mumkin. Rangni o'zgartirish uchun yuqoridagi
+    ◐ tugmasi orqali qorong'u rejimni sinab ko'ring.
+  </div>
+
+  <!-- ── RANGLAR ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">1. Rang tokenlari</h2>
+    <div class="grid g-4 g3">
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--primary)"></div><p class="t-cap semi mt-2">--primary</p><p class="t-micro muted-2">Asosiy harakat</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--accent)"></div><p class="t-cap semi mt-2">--accent</p><p class="t-micro muted-2">Urg'u</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--success)"></div><p class="t-cap semi mt-2">--success</p><p class="t-micro muted-2">Muvaffaqiyat</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--warning)"></div><p class="t-cap semi mt-2">--warning</p><p class="t-micro muted-2">Ogohlantirish</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--danger)"></div><p class="t-cap semi mt-2">--danger</p><p class="t-micro muted-2">Xatolik</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--surface);border:1px solid var(--border)"></div><p class="t-cap semi mt-2">--surface</p><p class="t-micro muted-2">Yuza</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;background:var(--bg-2)"></div><p class="t-cap semi mt-2">--bg-2</p><p class="t-micro muted-2">Fon</p></div>
+      <div class="card pad-4"><div style="height:44px;border-radius:10px;border:1px solid var(--border-2)"></div><p class="t-cap semi mt-2">--border</p><p class="t-micro muted-2">Chegara</p></div>
+    </div>
+  </section>
+
+  <!-- ── TIPOGRAFIYA ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">2. Tipografiya shkalasi</h2>
+    <div class="card">
+      <p class="t-display">Display 32 / 800 — Sahifa sarlavhasi</p>
+      <p class="t-h1 mt-4">H1 24 / 800 — Bo'lim sarlavhasi</p>
+      <p class="t-h2 mt-4">H2 20 / 700 — Karta sarlavhasi</p>
+      <p class="t-h3 mt-4">H3 16 / 700 — Kichik sarlavha</p>
+      <p class="t-body mt-4">Body 14 / 400 — Asosiy matn. Foydalanuvchi uchun o'qishga qulay asosiy o'lcham.</p>
+      <p class="t-cap muted mt-4">Caption 12 — Ikkilamchi ma'lumot</p>
+      <p class="t-micro muted-2 mt-2">Micro 11 — Badge, metka</p>
+    </div>
+  </section>
+
+  <!-- ── RADIUS VA BO'SHLIQ ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">3. Radius va bo'shliq</h2>
+    <div class="grid g-4 g3">
+      <div class="card pad-4 tc"><div style="height:56px;background:var(--primary-l);border-radius:var(--r-sm)"></div><p class="t-cap semi mt-2">--r-sm 8 · badge</p></div>
+      <div class="card pad-4 tc"><div style="height:56px;background:var(--primary-l);border-radius:var(--r-md)"></div><p class="t-cap semi mt-2">--r-md 12 · input/btn</p></div>
+      <div class="card pad-4 tc"><div style="height:56px;background:var(--primary-l);border-radius:var(--r-lg)"></div><p class="t-cap semi mt-2">--r-lg 16 · card</p></div>
+      <div class="card pad-4 tc"><div style="height:56px;background:var(--primary-l);border-radius:var(--r-xl)"></div><p class="t-cap semi mt-2">--r-xl 24 · modal</p></div>
+      <div class="card pad-4 tc"><div style="height:56px;background:var(--primary-l);border-radius:var(--r-full)"></div><p class="t-cap semi mt-2">--r-full · avatar/pill</p></div>
+      <div class="card pad-4 tc"><div style="height:56px;background:var(--primary-l);border-radius:var(--r-xl);margin:0 auto;width:24px"></div><p class="t-cap semi mt-2">Bo'shliq 4·8·12·16·24·32</p></div>
+    </div>
+  </section>
+
+  <!-- ── KOMPONENTLAR ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">4. Komponentlar galereyasi</h2>
+
+    <div class="grid g-2 g3">
+      <!-- Buttons -->
+      <div class="card">
+        <p class="t-h3 mb-4">Tugmalar</p>
+        <div class="wrapx g2">
+          <button class="btn btn-primary">Asosiy</button>
+          <button class="btn btn-outline">Ikkilamchi</button>
+          <button class="btn btn-ghost">Shaffof</button>
+          <button class="btn btn-success">Qabul</button>
+          <button class="btn btn-danger">O'chirish</button>
+          <button class="btn btn-primary" aria-disabled="true">Bloklangan</button>
+          <button class="btn btn-primary btn-lg">Katta</button>
+          <button class="btn btn-outline btn-sm">Kichik</button>
+        </div>
+      </div>
+
+      <!-- Badge / chip -->
+      <div class="card">
+        <p class="t-h3 mb-4">Badge va chip</p>
+        <div class="wrapx g2 mb-4">
+          <span class="badge badge-primary">Yangi</span>
+          <span class="badge badge-success">Tasdiqlangan</span>
+          <span class="badge badge-warning">Kutilmoqda</span>
+          <span class="badge badge-danger">Rad etilgan</span>
+          <span class="badge">Neytral</span>
+        </div>
+        <div class="wrapx g2">
+          <button class="chip chip-active">Hovli</button>
+          <button class="chip">Kvartira</button>
+          <button class="chip">Yer</button>
+          <button class="chip">Ijara</button>
+        </div>
+      </div>
+
+      <!-- Inputs -->
+      <div class="card">
+        <p class="t-h3 mb-4">Maydonlar</p>
+        <div class="col g4">
+          <div class="field">
+            <label class="label">Ism</label>
+            <input class="input" placeholder="Ismingizni kiriting">
+          </div>
+          <div class="field">
+            <label class="label">Telefon</label>
+            <input class="input" value="+998 90 123 45 67" aria-invalid="true">
+            <span class="error-text">Telefon raqami noto'g'ri</span>
+          </div>
+          <div class="field">
+            <label class="label">Hudud</label>
+            <select class="select"><option>Toshkent</option><option>Samarqand</option></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Avatar / rating -->
+      <div class="card">
+        <p class="t-h3 mb-4">Avatar, reyting, switch</p>
+        <div class="center g3 mb-4">
+          <span class="avatar avatar-sm">A</span>
+          <span class="avatar">AK</span>
+          <span class="avatar avatar-lg">BS</span>
+          <span class="avatar avatar-wrap avatar-lg"><span class="dot-online"></span></span>
+        </div>
+        <div class="center g2 mb-4">
+          <span class="rating">
+            <svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+            <svg viewBox="0 0 24 24" style="opacity:.3"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg>
+          </span>
+          <span class="rating-value">4.6 (128)</span>
+        </div>
+        <div class="between">
+          <span class="t-cap muted">Qorong'u rejim</span>
+          <button class="switch" role="switch" aria-checked="false" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked')==='true'?'false':'true')"></button>
+        </div>
+      </div>
+
+      <!-- States -->
+      <div class="card">
+        <p class="t-h3 mb-4">Holatlar</p>
+        <div class="col g3">
+          <div class="skeleton" style="height:14px;width:70%"></div>
+          <div class="skeleton" style="height:14px;width:100%"></div>
+          <div class="skeleton" style="height:14px;width:85%"></div>
+        </div>
+        <div class="empty" style="padding:24px 0 0">
+          <span class="empty-icon">⌂</span>
+          <p class="semi" style="color:var(--text)">Hozircha e'lon yo'q</p>
+          <p class="t-cap">Birinchi e'loningizni joylashtiring</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Z-INDEX ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">5. z-index shkalasi (yagona ierarxiya)</h2>
+    <div class="card p-0" style="overflow:hidden">
+      <table class="w-100" style="border-collapse:collapse">
+        <thead><tr style="background:var(--bg-2);text-align:left">
+          <th class="t-cap" style="padding:12px 16px">Token</th>
+          <th class="t-cap" style="padding:12px 16px">Qiymat</th>
+          <th class="t-cap" style="padding:12px 16px">Ishlatiladi</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:11px 16px" class="t-cap">--z-dropdown</td><td style="padding:11px 16px" class="t-cap">40</td><td style="padding:11px 16px" class="t-cap muted">Menyu, dropdown</td></tr>
+          <tr><td style="padding:11px 16px" class="t-cap">--z-sticky</td><td style="padding:11px 16px" class="t-cap">50</td><td style="padding:11px 16px" class="t-cap muted">Navbar</td></tr>
+          <tr><td style="padding:11px 16px" class="t-cap">--z-overlay</td><td style="padding:11px 16px" class="t-cap">100</td><td style="padding:11px 16px" class="t-cap muted">Mobil drawer foni</td></tr>
+          <tr><td style="padding:11px 16px" class="t-cap">--z-modal</td><td style="padding:11px 16px" class="t-cap">110</td><td style="padding:11px 16px" class="t-cap muted">Barcha modallar</td></tr>
+          <tr><td style="padding:11px 16px" class="t-cap">--z-toast</td><td style="padding:11px 16px" class="t-cap">120</td><td style="padding:11px 16px" class="t-cap muted">Bildirishnoma</td></tr>
+          <tr><td style="padding:11px 16px" class="t-cap">--z-tooltip</td><td style="padding:11px 16px" class="t-cap">130</td><td style="padding:11px 16px" class="t-cap muted">Tooltip</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── MODAL NAMUNASI ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">6. Modal pattern (yagona)</h2>
+    <button class="btn btn-primary" onclick="document.getElementById('demoModal').style.display='flex'">Modalni ochish</button>
+    <div class="modal-backdrop" id="demoModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="mt">
+        <div class="between mb-4">
+          <h3 class="t-h2" id="mt">E'lonni shikoyat qilish</h3>
+          <button class="icon-btn" onclick="document.getElementById('demoModal').style.display='none'" aria-label="Yopish">✕</button>
+        </div>
+        <div class="field mb-4">
+          <label class="label">Sabab</label>
+          <select class="select"><option>Noto'g'ri ma'lumot</option><option>Spam</option><option>Firibgarlik</option></select>
+        </div>
+        <div class="field mb-6">
+          <label class="label">Izoh</label>
+          <textarea class="textarea" rows="3" placeholder="Qo'shimcha izoh..."></textarea>
+        </div>
+        <div class="center g3" style="justify-content:flex-end">
+          <button class="btn btn-outline" onclick="document.getElementById('demoModal').style.display='none'">Bekor qilish</button>
+          <button class="btn btn-primary" onclick="document.getElementById('demoModal').style.display='none'">Yuborish</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TOAST ── -->
+  <section class="mb-6">
+    <h2 class="t-h1 mb-4">7. Toast</h2>
+    <div class="card">
+      <div class="toast" style="position:static">
+        <span class="badge badge-success">✓</span>
+        <div><p class="semi t-cap">E'lon saqlandi</p><p class="t-micro muted-2">Endi uni tahrirlashingiz mumkin</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MAKETLARGA HAVOLALAR ── -->
+  <section class="mb-12">
+    <h2 class="t-h1 mb-4">8. Interfeys maketlari</h2>
+    <div class="grid g-3 g3">
+      <a class="card card-hover" href="home.html"><p class="t-h2">Bosh sahifa</p><p class="t-cap muted mt-2">Qidiruv, kategoriyalar, tavsiya etilgan e'lonlar</p></a>
+      <a class="card card-hover" href="properties.html"><p class="t-h2">E'lonlar ro'yxati</p><p class="t-cap muted mt-2">Filtrlar, kartalar, saralash, bo'sh holat</p></a>
+      <a class="card card-hover" href="chat.html"><p class="t-h2">Chat va qo'ng'iroq</p><p class="t-cap muted mt-2">Xabarlar, ovozli/video qo'ng'iroq modali</p></a>
+      <a class="card card-hover" href="mobile.html"><p class="t-h2">Mobil ko'rinish</p><p class="t-cap muted mt-2">Navigatsiya, pastki panel, responsive</p></a>
+    </div>
+  </section>
+
+  <!-- ── VEB ↔ MOBIL MOSLIK ── -->
+  <section class="mb-12">
+    <h2 class="t-h1 mb-4">9. Veb ↔ Mobil moslik (yagona UX)</h2>
+    <div class="mock-note mb-6">
+      <strong>Mobil maket (<a href="mobile.html">mobile.html</a>) — sifat etaloni.</strong>
+      Quyidagi naqshlar barcha veb-sahifalarda aynan takrorlanadi, shu sababli bir xil
+      dizayn tizimi va foydalanuvchi tajribasi ta'minlanadi:
+      <code>.wdrawer</code> (yon drawer), <code>.wtabbar</code> (pastki tab panel),
+      <code>.wsheet-grip</code> (bottom sheet), <code>.only-lg</code> / <code>.desk-only</code>
+      (ko'rsatish yordamchilari).
+    </div>
+
+    <div class="card p-0 mb-6" style="overflow:hidden">
+      <table class="w-100" style="border-collapse:collapse">
+        <thead><tr style="background:var(--bg-2);text-align:left">
+          <th class="t-cap" style="padding:12px 16px">Breakpoint</th>
+          <th class="t-cap" style="padding:12px 16px">Navigatsiya</th>
+          <th class="t-cap" style="padding:12px 16px">Filtrlar / panellar</th>
+          <th class="t-cap" style="padding:12px 16px">Tegish maydoni</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:11px 16px" class="t-cap semi">&gt; 1024px · desktop</td><td style="padding:11px 16px" class="t-cap muted">Guruhlangan yuqori menyu</td><td style="padding:11px 16px" class="t-cap muted">Yon panel (sticky)</td><td style="padding:11px 16px" class="t-cap muted">38px</td></tr>
+          <tr style="background:var(--surface-2)"><td style="padding:11px 16px" class="t-cap semi">641–1024px · planshet</td><td style="padding:11px 16px" class="t-cap muted">☰ → yon drawer</td><td style="padding:11px 16px" class="t-cap muted">Bottom sheet</td><td style="padding:11px 16px" class="t-cap muted">40px</td></tr>
+          <tr><td style="padding:11px 16px" class="t-cap semi">≤ 640px · telefon</td><td style="padding:11px 16px" class="t-cap muted">☰ + pastki tab panel</td><td style="padding:11px 16px" class="t-cap muted">Bottom sheet</td><td style="padding:11px 16px" class="t-cap muted">44px+</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid g-2 g3">
+      <div class="card">
+        <p class="t-h3 mb-4">Pastki tab panel</p>
+        <p class="t-cap muted mb-4">≤ 640px da ekran pastida turadi (mobil ilovadagi bilan bir xil 5 ta band).</p>
+        <nav class="wtabbar" style="position:static;display:grid;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <a class="wtab active" href="home.html"><span class="wtab-ico">⌂</span>Bosh sahifa</a>
+          <a class="wtab" href="properties.html"><span class="wtab-ico">⌕</span>Qidiruv</a>
+          <a class="wtab" href="#"><span class="wtab-ico">♡</span>Sevimli</a>
+          <a class="wtab" href="chat.html"><span class="wtab-ico">✉</span>Chat<span class="wtab-badge">3</span></a>
+          <a class="wtab" href="#"><span class="wtab-ico">◉</span>Profil</a>
+        </nav>
+      </div>
+
+      <div class="card">
+        <p class="t-h3 mb-4">Bottom sheet (filtrlar)</p>
+        <p class="t-cap muted mb-4">≤ 1024px da filtrlar pastdan chiqadigan panelda ochiladi.</p>
+        <div style="border:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) var(--r-lg) var(--r-lg);background:var(--surface)">
+          <span class="wsheet-grip"></span>
+          <div style="padding:4px 16px 16px">
+            <p class="semi t-cap mb-4">Filtrlar</p>
+            <div class="wrapx g2 mb-4">
+              <button class="chip chip-active">Kvartira</button>
+              <button class="chip">Hovli</button>
+              <button class="chip">Yer</button>
+            </div>
+            <button class="btn btn-primary btn-block">Natijalarni ko'rsatish</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="t-h3 mb-4">Tegish maydoni ≥ 44px</p>
+        <p class="t-cap muted mb-4">Barmoq bilan oson bosiladi — mobil UX standarti.</p>
+        <div class="col g3">
+          <span class="badge badge-success">Tugmalar 44px</span>
+          <span class="badge badge-success">Ikonkalar 44×44</span>
+          <span class="badge badge-success">Inputlar 46px</span>
+          <span class="badge badge-success">Menyu qatorlari 44px</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── HUJJATLAR ── -->
+  <section class="mb-12">
+    <h2 class="t-h1 mb-4">10. Hujjatlar</h2>
+    <div class="grid g-2 g3">
+      <a class="card card-hover" href="../design-spec.md"><p class="t-h2">Dizayn spetsifikatsiyasi</p><p class="t-cap muted mt-2">Tokenlar, tipografiya, komponentlar, z-index, breakpointlar</p></a>
+      <a class="card card-hover" href="../ux-report.md"><p class="t-h2">UX hisoboti</p><p class="t-cap muted mt-2">Foydalanuvchi ehtiyojlari, audit natijalari, sinov rejasi</p></a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap" style="padding-top:32px;padding-bottom:32px">
+    <p class="t-cap muted-2">Mening Uyim — dizayn tizimi mockup · Interfeys maketlari seriyasining bir qismi</p>
+  </div>
+</footer>
+</body>
+</html>

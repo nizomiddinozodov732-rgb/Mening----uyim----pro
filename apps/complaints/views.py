@@ -30,3 +30,13 @@ class ComplaintViewSet(viewsets.ModelViewSet):
                 complaint.accused = complaint.store.owner
             if complaint.accused:
                 complaint.save(update_fields=['accused'])
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        # Holat va admin javobini faqat adminlar o'zgartiradi; oddiy foydalanuvchi
+        # faqat o'z shikoyati mazmunini tahrirlay oladi.
+        if not (user.is_admin or user.is_super_admin):
+            instance = serializer.instance
+            serializer.save(status=instance.status, admin_response=instance.admin_response)
+        else:
+            serializer.save()
