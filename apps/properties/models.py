@@ -49,14 +49,15 @@ class Property(models.Model):
         return f"{self.title} - {self.get_property_type_display()}"
 
     def update_rating(self):
-        ratings = self.ratings.all()
-        if ratings.exists():
-            avg = ratings.aggregate(models.Avg('stars'))['stars__avg'] or 0.0
-            self.rating = round(float(avg), 2)
-            self.rating_count = ratings.count()
-        else:
-            self.rating = 0.0
-            self.rating_count = 0
+        # V-8: agregat to'g'ridan-to'g'ri bazadan hisoblanadi. Avval
+        # `self.ratings.all()` ishlatilardi — prefetch qilingan (eski/bo'sh)
+        # kesh o'qilib, birinchi reyting agregatga o'tmasdi va
+        # `QuerySet.delete()` bilan o'chirilganda `rating_count` yangilanmasdi.
+        agg = PropertyRating.objects.filter(property=self).aggregate(
+            avg=models.Avg('stars'), count=models.Count('id'),
+        )
+        self.rating = round(float(agg['avg']), 2) if agg['avg'] is not None else 0.0
+        self.rating_count = agg['count'] or 0
         self.save(update_fields=['rating', 'rating_count'])
 
 

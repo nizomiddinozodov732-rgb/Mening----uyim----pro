@@ -8,7 +8,10 @@ from django.core.exceptions import ValidationError
 from .middleware import (
     get_client_ip, log_security_event, register_failed_login, reset_failed_logins,
 )
-from .serializers import RegisterSerializer, UserSerializer, UserProfileUpdateSerializer, AdminUserSerializer
+from .serializers import (
+    RegisterSerializer, OwnUserSerializer,
+    PublicUserSerializer, UserProfileUpdateSerializer, AdminUserSerializer,
+)
 
 User = get_user_model()
 
@@ -44,6 +47,10 @@ class LoginView(APIView):
         if user is None:
             user = authenticate(request, username=credential, password=password)
 
+        # V-10: `authenticate()` nofaol (is_active=False) foydalanuvchi uchun
+        # `None` qaytaradi, shu sababli bu yerda 400 (neytral xato) qaytadi —
+        # nofaol akkaunt uchun alohida 403 shoxobchasi yetib bo'lmaydigan edi
+        # va foydalanuvchi mavjudligini oshkor qilish xavfi bor edi.
         if user is None:
             remaining = register_failed_login(ip)
             log_security_event(
@@ -55,10 +62,6 @@ class LoginView(APIView):
             if isinstance(remaining, int) and remaining <= 3:
                 payload['error'] += f". Diqqat: {remaining} ta urinish qoldi"
             return Response(payload, status=400)
-
-        if not user.is_active:
-            log_security_event(user, 'login_failed', ip, details="Bloklangan akkauntga kirish urinishi", device_info=device)
-            return Response({'error': "Hisobingiz bloklangan"}, status=403)
 
         reset_failed_logins(ip)
         log_security_event(user, 'login_success', ip, details="Muvaffaqiyatli kirish", device_info=device)
@@ -82,7 +85,7 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
         return Response({
-            'user': UserSerializer(user).data,
+            'user': OwnUserSerializer(user).data,
             'tokens': {
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
@@ -91,7 +94,7 @@ class RegisterView(generics.CreateAPIView):
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
-    serializer_class = UserSerializer
+    serializer_class = OwnUserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
@@ -100,7 +103,7 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     def get_serializer_class(self):
         if self.request.method in ['PUT', 'PATCH']:
             return UserProfileUpdateSerializer
-        return UserSerializer
+        return OwnUserSerializer
 
     def post(self, request):
         """Profil sahifasidan parolni o'zgartirish (old_password + new_password)"""
@@ -124,12 +127,14 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    # V-4: ommaviy tafsilot — faqat minimal (PII'siz) maydonlar
+    serializer_class = PublicUserSerializer
     permission_classes = [permissions.AllowAny]
 
 
 class UserListView(generics.ListAPIView):
-    serializer_class = UserSerializer
+    # V-4: ommaviy ro'yxat — PII va ochiq kalit chiqarilmaydi
+    serializer_class = PublicUserSerializer
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
@@ -154,10 +159,10 @@ class TopProfessionalsView(APIView):
         top_repairmen = User.objects.filter(profession='repairman', is_active=True).order_by('-rating')[:6]
         top_architects = User.objects.filter(profession='architect', is_active=True).order_by('-rating')[:6]
         return Response({
-            'sellers': UserSerializer(top_sellers, many=True).data,
-            'builders': UserSerializer(top_builders, many=True).data,
-            'repairmen': UserSerializer(top_repairmen, many=True).data,
-            'architects': UserSerializer(top_architects, many=True).data,
+            'sellers': PublicUserSerializer(top_sellers, many=True).data,
+            'builders': PublicUserSerializer(top_builders, many=True).data,
+            'repairmen': PublicUserSerializer(top_repairmen, many=True).data,
+            'architects': PublicUserSerializer(top_architects, many=True).data,
         })
 
 

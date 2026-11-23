@@ -1,9 +1,8 @@
 """Funksional va xavfsizlik testlari — accounts (autentifikatsiya) moduli.
 
-Testlar ikki guruhga bo'linadi:
-  1) Kutilgan (to'g'ri) xatti-harakat — regressiyani ushlab qolish uchun.
-  2) Tasdiqlangan zaifliklar (PoC) — hujjatlashtirilgan muammolarni
-     qayta ishlab chiqarish uchun (nomi `..._vulnerability` bilan tugaydi).
+Topilgan zaifliklar (V-1, V-2, V-4, V-10, V-12) tuzatilgandan so'ng, avval PoC
+sifatida yozilgan testlar **xavfsiz xatti-harakatni** tekshiruvchi regressiya
+testlariga aylantirildi.
 """
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -104,11 +103,10 @@ class LoginAPITests(BaseAPITestCase):
     def test_inactive_user_cannot_login(self):
         """Funksional: bloklangan (is_active=False) foydalanuvchi kira olmaydi.
 
-        Kichik kamchilik: `LoginView` dagi 403 ("Hisobingiz bloklangan")
-        shoxobchasi amalda ishlamaydi — Django `authenticate()` nofaol
-        foydalanuvchi uchun `None` qaytaradi, shu sababli javob 400 bo'ladi.
-        Xavfsizlik nuqtai nazaridan bu maqbul (foydalanuvchi mavjudligini
-        oshkor qilmaydi), lekin xato xabari chalg'ituvchi.
+        V-10: `LoginView` da nofaol akkaunt uchun alohida 403 shoxobchasi
+        olib tashlandi — Django `authenticate()` nofaol foydalanuvchi uchun
+        `None` qaytaradi, shu sababli javob neytral 400 bo'ladi va
+        foydalanuvchi mavjudligi oshkor qilinmaydi.
         """
         self.user.is_active = False
         self.user.save(update_fields=['is_active'])
@@ -185,49 +183,63 @@ class BruteForceProtectionTests(BaseAPITestCase):
         blocked = self.client.post(self.url, {'username': 'ali', 'password': STRONG_PASSWORD}, format='json')
         self.assertEqual(blocked.status_code, 403)
 
-    def test_x_forwarded_for_spoofing_bypasses_brute_force_blocking_vulnerability(self):
-        """ZAIFLIK: `get_client_ip()` X-Forwarded-For sarlavhasiga ishonadi.
+    def test_spoofed_x_forwarded_for_cannot_bypass_brute_force_blocking(self):
+        """V-2: soxta `X-Forwarded-For` hisoblagichni IP'lar bo'yicha bo'lib
+        tashlay olmaydi.
 
-        Har bir so'rovda soxta XFF yuborilsa, hisoblagich IP'lar bo'yicha
-        bo'linib ketadi va haqiqiy IP hech qachon bloklanmaydi.
+        So'rov ishonchli proksidan (`REMOTE_ADDR=127.0.0.1`) keladi va proksi
+        haqiqiy mijoz IP'sini XFF oxiriga qo'shadi (`NUM_PROXIES=1`). Hujumchi
+        boshiga faqat soxta qiymat qo'sha oladi — bu hisoblagichni almashtira
+        olmaydi, shu sababli IP 10 xatodan keyin baribir bloklanadi.
         """
         for i in range(10):
             resp = self.client.post(
                 self.url, {'username': 'ali', 'password': 'xato'}, format='json',
-                HTTP_X_FORWARDED_FOR=f'10.0.0.{i + 1}',
+                HTTP_X_FORWARDED_FOR=f'10.0.0.{i + 1}, 203.0.113.7',
             )
             self.assertEqual(resp.status_code, 400, resp.data)
-        self.assertEqual(BlockedIP.objects.count(), 0)  # hech kim bloklanmadi
+        self.assertTrue(BlockedIP.objects.filter(ip_address='203.0.113.7').exists())
+        blocked = self.client.post(
+            self.url, {'username': 'ali', 'password': STRONG_PASSWORD}, format='json',
+            HTTP_X_FORWARDED_FOR='10.0.0.99, 203.0.113.7',
+        )
+        self.assertEqual(blocked.status_code, 403)
 
-    def test_x_forwarded_for_spoofing_bypasses_drf_throttling_vulnerability(self):
-        """ZAIFLIK: DRF throttling ham XFF'ga tayanadi (NUM_PROXIES sozlanmagan)."""
+    def test_spoofed_x_forwarded_for_cannot_bypass_drf_throttling(self):
+        """V-2: DRF throttling `NUM_PROXIES` orqali XFF'ning faqat proksi
+        qo'shgan (o'ng tomondagi) qismini hisobga oladi."""
         statuses = []
-        for i in range(15):
+        for i in range(12):
             resp = self.client.post(
-                self.url, {'username': 'ali', 'password': 'xato'}, format='json',
-                HTTP_X_FORWARDED_FOR=f'172.16.0.{i + 1}',
+                self.url, {'username': 'ali', 'password': STRONG_PASSWORD}, format='json',
+                HTTP_X_FORWARDED_FOR=f'172.16.0.{i + 1}, 203.0.113.9',
             )
             statuses.append(resp.status_code)
-        self.assertNotIn(429, statuses)  # 10/min limitini chetlab o'tish mumkin
+        # 10/min limitidan oshgani uchun 429 (throttle) bo'lishi shart
+        self.assertIn(429, statuses)
 
 
 class PublicUserDataExposureTests(BaseAPITestCase):
-    def test_public_user_list_exposes_email_phone_and_public_key_vulnerability(self):
-        """ZAIFLIK: `AllowAny` ro'yxat/tafsilot endpointlari shaxsiy ma'lumotlarni
-        (email, telefon, E2E ochiq kalit) autentifikatsiyasiz tarqatadi."""
+    def test_public_user_list_does_not_expose_pii(self):
+        """V-4: `AllowAny` ro'yxat/tafsilot endpointlari shaxsiy ma'lumotlarni
+        (email, telefon, E2E ochiq kalit) tarqatmaydi."""
         self.user.public_key = '{"kty":"EC","crv":"P-256","x":"abc","y":"def"}'
         self.user.save(update_fields=['public_key'])
 
         listing = self.client.get('/api/v1/auth/users/')
         self.assertEqual(listing.status_code, 200)
         row = listing.data['results'][0]
-        self.assertEqual(row['email'], 'ali@example.com')
-        self.assertIn('phone', row)
-        self.assertIn('public_key', row)
+        self.assertNotIn('email', row)
+        self.assertNotIn('phone', row)
+        self.assertNotIn('public_key', row)
+        # Ommaviy profil uchun foydali maydonlar saqlanib qoladi
+        self.assertEqual(row['username'], 'ali')
+        self.assertIn('rating', row)
 
         detail = self.client.get(f'/api/v1/auth/users/{self.user.id}/')
         self.assertEqual(detail.status_code, 200)
-        self.assertEqual(detail.data['email'], 'ali@example.com')
+        self.assertNotIn('email', detail.data)
+        self.assertNotIn('phone', detail.data)
 
 
 class AdminPrivilegeEscalationTests(BaseAPITestCase):
@@ -258,9 +270,9 @@ class AdminPrivilegeEscalationTests(BaseAPITestCase):
         resp = self.client.patch(f'/api/v1/auth/admin/users/{self.target.id}/', {'first_name': 'Hack'}, format='json')
         self.assertEqual(resp.status_code, 403)
 
-    def test_admin_self_promotion_to_super_admin_vulnerability(self):
-        """ZAIFLIK (Kritik): oddiy `is_admin` foydalanuvchi `AdminUserSerializer`
-        orqali o'ziga `is_super_admin=True` o'rnatib, to'liq imtiyozga chiqadi."""
+    def test_admin_cannot_self_promote_to_super_admin(self):
+        """V-1: oddiy `is_admin` foydalanuvchi `AdminUserSerializer` orqali o'z
+        imtiyozini oshira olmaydi — imtiyoz maydonlari faqat o'qish uchun."""
         self.authenticate(self.admin)
         resp = self.client.patch(
             f'/api/v1/auth/admin/users/{self.admin.id}/',
@@ -268,14 +280,14 @@ class AdminPrivilegeEscalationTests(BaseAPITestCase):
         )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.admin.refresh_from_db()
-        self.assertTrue(self.admin.is_super_admin)  # ← imtiyoz oshirib olindi
+        self.assertFalse(self.admin.is_super_admin)  # imtiyoz oshirilmadi
 
-        # Natija: super-admin uchun mo'ljallangan endpoint ochiladi
+        # Super-admin uchun mo'ljallangan endpoint hali ham yopiq
         escalated = self.client.get('/api/v1/dashboard/command-center/')
-        self.assertEqual(escalated.status_code, 200)
+        self.assertEqual(escalated.status_code, 403)
 
-    def test_admin_cannot_escalate_other_user_without_super_admin_vulnerability(self):
-        """ZAIFLIK: xuddi shu yo'l bilan boshqa foydalanuvchi ham super-admin qilinadi."""
+    def test_admin_cannot_escalate_other_user(self):
+        """V-1: xuddi shu yo'l bilan boshqa foydalanuvchi ham super-admin qilinmaydi."""
         self.authenticate(self.admin)
         resp = self.client.patch(
             f'/api/v1/auth/admin/users/{self.target.id}/',
@@ -283,4 +295,4 @@ class AdminPrivilegeEscalationTests(BaseAPITestCase):
         )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.target.refresh_from_db()
-        self.assertTrue(self.target.is_super_admin)
+        self.assertFalse(self.target.is_super_admin)

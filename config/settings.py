@@ -208,11 +208,29 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# ── Proksi (X-Forwarded-For) ishonch sozlamalari ────────────────
+# V-2: XFF sarlavhasi faqat ishonchli proksilardan (masalan, Next.js/Nginx
+# bir xostda) kelganda hisobga olinadi; aks holda e'tiborsiz qoldirilib,
+# to'g'ridan-to'g'ri REMOTE_ADDR ishlatiladi. Aks holda XFF'ni soxtalashtirib
+# IP asosidagi bloklash (brute-force) va throttling chetlab o'tiladi.
+TRUSTED_PROXY_IPS = [
+    ip.strip() for ip in os.environ.get('TRUSTED_PROXY_IPS', '127.0.0.1,::1').split(',')
+    if ip.strip()
+]
+# Oldimizdagi ishonchli proksilar soni — XFF ro'yxatidan haqiqiy mijoz
+# manzilini tanlash uchun (DRF NUM_PROXIES mantig'i bilan bir xil).
+try:
+    NUM_PROXIES = max(0, int(os.environ.get('NUM_PROXIES', '1')))
+except (TypeError, ValueError):
+    NUM_PROXIES = 1
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    # Throttling ham XFF'ni faqat shu sondagi proksilar orqasida hisobga oladi.
+    'NUM_PROXIES': NUM_PROXIES,
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
@@ -315,5 +333,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # File upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
+# V-9: yuklanadigan fayl hajmi cheklanadi (DoS/xotira va disk suiiste'molini
+# kamaytirish uchun). Tur va hajm allowlist'i serializer darajasida ham
+# tekshiriladi.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB

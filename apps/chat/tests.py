@@ -109,11 +109,11 @@ class ConversationAccessTests(ChatBaseTestCase):
 
 
 class ChatFileUploadSecurityTests(ChatBaseTestCase):
-    """ZAIFLIK: chat fayllari turi bo'yicha tekshirilmaydi.
+    """V-5: chat fayllari allowlist orqali tekshiriladi.
 
-    `/media/` same-origin (Next.js proksisi) orqali xizmat qilinadi, shu sababli
-    `.html`/`.svg` yuklash orqali saqlangan XSS (stored XSS) hosil qilish mumkin —
-    token localStorage'da saqlangani uchun bu seansni o'g'irlashga olib keladi.
+    `.html`/`.svg` kabi fayllar `/media/` orqali same-origin xizmat qilinib
+    saqlangan XSS (stored XSS) hosil qilishi mumkin edi — endi ular rad
+    etiladi va `/media/` `X-Content-Type-Options: nosniff` bilan beriladi.
     """
 
     def setUp(self):
@@ -128,21 +128,32 @@ class ChatFileUploadSecurityTests(ChatBaseTestCase):
         shutil.rmtree(self._media_root, ignore_errors=True)
         super().tearDown()
 
-    def test_uploaded_html_file_is_served_as_text_html_vulnerability(self):
+    def _upload(self, name, content, content_type):
         conv = self.create_conversation()
-        payload = SimpleUploadedFile(
-            'evil.html', b'<script>alert(document.cookie)</script>', content_type='text/html',
-        )
-        resp = self.client.post(
+        payload = SimpleUploadedFile(name, content, content_type=content_type)
+        return self.client.post(
             f'/api/v1/chat/conversations/{conv.id}/send_message/',
             {'content': '', 'message_type': 'document', 'file': payload}, format='multipart',
         )
+
+    def test_html_upload_is_rejected(self):
+        resp = self._upload('evil.html', b'<script>alert(document.cookie)</script>', 'text/html')
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertEqual(Message.objects.count(), 0)
+
+    def test_svg_upload_is_rejected(self):
+        resp = self._upload('evil.svg', b'<svg onload="alert(1)"></svg>', 'image/svg+xml')
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertEqual(Message.objects.count(), 0)
+
+    def test_allowed_image_upload_succeeds_and_media_is_nosniff(self):
+        resp = self._upload('photo.png', b'\x89PNG\r\n\x1a\n', 'image/png')
         self.assertEqual(resp.status_code, 201, resp.data)
         msg = Message.objects.first()
         self.assertIsNotNone(msg.file)
         media = self.client.get(f'/media/{msg.file.name}')
         try:
             self.assertEqual(media.status_code, 200)
-            self.assertIn('text/html', media['Content-Type'])
+            self.assertEqual(media['X-Content-Type-Options'], 'nosniff')
         finally:
             media.close()

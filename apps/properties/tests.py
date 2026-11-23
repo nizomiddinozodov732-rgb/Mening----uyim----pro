@@ -1,6 +1,5 @@
 """Funksional va xavfsizlik testlari — properties (e'lonlar) moduli."""
 import io
-import unittest
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -58,17 +57,36 @@ class PropertyListTests(PropertyBaseTestCase):
         self.assertIn('Faol uy', titles)
         self.assertNotIn('Sotilgan uy', titles)
 
-    def test_all_parameter_reveals_hidden_listings_vulnerability(self):
-        """ZAIFLIK: `?all=1` autentifikatsiyasiz ham nofaol/sotilgan e'lonlarni ochadi."""
+    def test_all_parameter_does_not_reveal_hidden_listings_to_anonymous(self):
+        """V-6: `?all=1` anonim so'rovchiga yashirin e'lonlarni ochmaydi."""
+        resp = self.client.get('/api/v1/properties/?all=1')
+        self.assertEqual(resp.status_code, 200)
+        titles = [p['title'] for p in resp.data['results']]
+        self.assertNotIn('Sotilgan uy', titles)
+
+    def test_all_parameter_reveals_hidden_listings_to_admin(self):
+        """V-6: faqat admin/super-admin `?all=1` bilan yashirin e'lonlarni ko'radi."""
+        self.seller.is_admin = True
+        self.seller.save(update_fields=['is_admin'])
+        self.authenticate(self.seller)
         resp = self.client.get('/api/v1/properties/?all=1')
         self.assertEqual(resp.status_code, 200)
         titles = [p['title'] for p in resp.data['results']]
         self.assertIn('Sotilgan uy', titles)
 
-    def test_public_listing_exposes_owner_phone_number_vulnerability(self):
-        """ZAIFLIK: `owner_phone` har qanday anonim so'rovchiga ko'rinadi."""
+    def test_public_listing_does_not_expose_owner_phone(self):
+        """V-7: `owner_phone` anonim so'rovchiga ko'rinmaydi."""
         self.seller.phone = '+998901234567'
         self.seller.save(update_fields=['phone'])
+        resp = self.client.get('/api/v1/properties/')
+        row = resp.data['results'][0]
+        self.assertIsNone(row['owner_phone'])
+
+    def test_authenticated_user_sees_owner_phone_in_listing(self):
+        """V-7: `owner_phone` faqat autentifikatsiya qilingan foydalanuvchiga beriladi."""
+        self.seller.phone = '+998901234567'
+        self.seller.save(update_fields=['phone'])
+        self.authenticate(self.customer)
         resp = self.client.get('/api/v1/properties/')
         row = resp.data['results'][0]
         self.assertEqual(row['owner_phone'], '+998901234567')
@@ -197,15 +215,11 @@ class PropertyRatingTests(PropertyBaseTestCase):
         resp = self.client.post(f'/api/v1/properties/{self.active.id}/rate/', {'stars': 5}, format='json')
         self.assertEqual(resp.status_code, 400)
 
-    @unittest.expectedFailure
     def test_user_can_rate_and_average_is_updated(self):
-        """MA'LUM XATO (o'rta): birinchi reyting agregatga o'tmaydi.
+        """V-8: birinchi reyting agregatga darhol o'tadi.
 
-        `PropertyViewSet.get_queryset()` `prefetch_related('ratings')` bilan
-        obyektni keshlaydi. `rate` action shu keshli obyektni
-        `update_or_create(property=prop, ...)`ga beradi; `PropertyRating.save()`
-        esa `self.property.update_rating()`ni chaqiradi — lekin kesh bo'sh
-        bo'lgani uchun `rating` va `rating_count` 0 bo'lib qoladi.
+        `Property.update_rating()` endi `rating`/`rating_count`ni to'g'ridan-to'g'ri
+        bazadan agregat qilib hisoblaydi (kesh/prefetch ta'siriga bog'liq emas).
         """
         self.authenticate(self.other)
         resp = self.client.post(f'/api/v1/properties/{self.active.id}/rate/', {'stars': 4, 'comment': 'Yaxshi'}, format='json')
@@ -228,12 +242,9 @@ class PropertyRatingTests(PropertyBaseTestCase):
         self.assertEqual(
             self.client.post(f'/api/v1/properties/{self.active.id}/rate/', {'stars': 9}, format='json').status_code, 400)
 
-    @unittest.expectedFailure
-    def test_rating_action_is_protected_by_authentication_vulnerability(self):
-        """XAVFSIZLIK (yuqori): `get_permissions()` `@action(permission_classes=...)`ni
-        bekor qiladi. Shu sababli anonim `POST /rate/` 401 emas, balki 500
-        (TypeError: AnonymousUser) qaytaradi — xato oqibati va DoS vektori.
-        """
+    def test_rating_action_requires_authentication(self):
+        """V-3: `get_permissions()` endi `@action` uchun autentifikatsiyani talab
+        qiladi — anonim `POST /rate/` 500 emas, 401 qaytaradi."""
         resp = self.client.post(f'/api/v1/properties/{self.active.id}/rate/', {'stars': 5}, format='json')
         self.assertEqual(resp.status_code, 401)
 
@@ -245,12 +256,11 @@ class PropertyRatingTests(PropertyBaseTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
 
-    @unittest.expectedFailure
     def test_delete_rating_recomputes_aggregate(self):
-        """MA'LUM XATO (o'rta): `delete_rating` reytingni o'chiradi, lekin
-        `rating_count` yangilanmaydi — `PropertyRating.delete()` override'i
-        `QuerySet.delete()` tomonidan chetlab o'tiladi, `prop.update_rating()`
-        esa keshdagi eski ro'yxatni o'qiydi.
+        """V-8: `delete_rating` agregatni to'g'ri qayta hisoblaydi.
+
+        `PropertyRating` o'chirilgach `prop.update_rating()` bazadan qayta
+        agregat qiladi, shu sababli `rating_count` nolga tushadi.
         """
         self.authenticate(self.other)
         self.client.post(f'/api/v1/properties/{self.active.id}/rate/', {'stars': 5}, format='json')
@@ -258,3 +268,4 @@ class PropertyRatingTests(PropertyBaseTestCase):
         self.assertEqual(resp.status_code, 200)
         self.active.refresh_from_db()
         self.assertEqual(self.active.rating_count, 0)
+        self.assertEqual(self.active.rating, 0.0)

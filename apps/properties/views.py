@@ -8,7 +8,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Property, PropertyImage, PropertyRating
 from .serializers import (
     PropertyListSerializer, PropertyDetailSerializer, PropertyCreateSerializer,
-    PropertyUpdateSerializer, PropertyRatingSerializer
+    PropertyUpdateSerializer, PropertyRatingSerializer, validate_uploaded_images
 )
 
 
@@ -29,10 +29,19 @@ class PropertyViewSet(viewsets.ModelViewSet):
             return PropertyCreateSerializer
         return PropertyDetailSerializer
 
+    # O'qish uchun ochiq (anonim) action'lar. Qolgan barcha action'lar
+    # (create/update/destroy/rate/delete_rating/upload_images/my_properties)
+    # autentifikatsiya talab qiladi.
+    PUBLIC_ACTIONS = {'list', 'retrieve', 'featured', 'ratings'}
+
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.AllowAny()]
+        # V-3: `@action(permission_classes=...)` e'tiborsiz qoldirilmasin.
+        # Avval barcha action'larga `AllowAny` qaytarilar edi — natijada anonim
+        # `rate`/`delete_rating` so'rovi `AnonymousUser` bilan ishlab 500 xato
+        # (DoS vektori) berardi.
+        if self.action in self.PUBLIC_ACTIONS:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def _can_modify(self, obj):
         user = self.request.user
@@ -93,6 +102,16 @@ class PropertyViewSet(viewsets.ModelViewSet):
             qs = qs.filter(area__lte=max_area)
         # Only active by default (tahrirlash/o'chirish/ko'rish uchun status cheklovi yo'q)
         show_all = self.request.query_params.get('all')
+        # V-6: yashirin (nofaol/sotilgan) e'lonlarni `?all=1` orqali faqat
+        # admin/super-admin ko'ra oladi — anonim so'rovchi ko'ra olmaydi.
+        request_user = getattr(self.request, 'user', None)
+        is_privileged = bool(
+            request_user is not None
+            and request_user.is_authenticated
+            and (request_user.is_admin or request_user.is_super_admin)
+        )
+        if show_all and not is_privileged:
+            show_all = None
         if not show_all and self.action not in ('retrieve', 'update', 'partial_update', 'destroy'):
             qs = qs.filter(status='active')
 
@@ -114,8 +133,11 @@ class PropertyViewSet(viewsets.ModelViewSet):
                 qs = qs.prefetch_related(
                     Prefetch('ratings', queryset=PropertyRating.objects.filter(user=user), to_attr='user_ratings')
                 )
-        else:
-            # Batafsil ko'rinishda barcha reytinglar kerak (serializer to'liq ro'yxatni chiqaradi).
+        elif self.action == 'retrieve':
+            # Batafsil ko'rinishda barcha reytinglar kerak (serializer to'liq
+            # ro'yxatni chiqaradi). V-8: `rate`/`delete_rating` action'larida
+            # reytinglar prefetch qilinmaydi — aks holda keshdagi eski ro'yxat
+            # agregat hisoblashni buzadi.
             qs = qs.prefetch_related(
                 Prefetch('ratings', queryset=PropertyRating.objects.select_related('user').order_by('-created_at'))
             )
@@ -223,6 +245,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
         if prop.owner != request.user:
             return Response({'error': 'Ruxsat yo\'q'}, status=403)
         images = request.FILES.getlist('images')
+        # V-9: rasm turi va hajmi allowlist orqali tekshiriladi
+        validate_uploaded_images(images)
         for i, img in enumerate(images):
             PropertyImage.objects.create(property=prop, image=img, order=i)
         return Response({'message': f'{len(images)} rasm yuklandi'})

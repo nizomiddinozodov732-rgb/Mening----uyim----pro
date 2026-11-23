@@ -22,6 +22,19 @@ urlpatterns = [
 ]
 
 # Yuklangan fayllar (rasmlar) — DEBUG=0 bo'lganda ham xizmat qiladi
+def serve_media(request, path):
+    """V-5: media fayllari `nosniff` sarlavhasi bilan xizmat qilinadi.
+
+    Brauzer fayl mazmunini MIME turidan mustaqil "sniff" qilib HTML sifatida
+    bajarishining oldini oladi (stored XSS himoyasi). `MEDIA_ROOT` shu yerda
+    (so'rov vaqtida) o'qiladi — konfiguratsiya o'zgartirilsa darhol kuchga
+    kiradi.
+    """
+    response = serve(request, path, document_root=settings.MEDIA_ROOT)
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
 urlpatterns += [
-    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^media/(?P<path>.*)$', serve_media),
 ]

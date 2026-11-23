@@ -2,6 +2,22 @@ from rest_framework import serializers
 from .models import Property, PropertyImage, PropertyRating
 from apps.accounts.serializers import UserSerializer
 
+# V-9: yuklanadigan rasmlar uchun hajm va tur cheklovi (DoS/storage abuse).
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+ALLOWED_IMAGE_CONTENT_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+
+
+def validate_uploaded_images(images):
+    for img in images:
+        if img.size > MAX_IMAGE_SIZE:
+            raise serializers.ValidationError(
+                f"Har bir rasm hajmi {MAX_IMAGE_SIZE // (1024 * 1024)}MB dan oshmasligi kerak."
+            )
+        content_type = (getattr(img, 'content_type', '') or '').lower()
+        if content_type and content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            raise serializers.ValidationError("Faqat JPEG, PNG, WEBP yoki GIF rasm yuklash mumkin.")
+    return images
+
 
 class PropertyRatingSerializer(serializers.ModelSerializer):
     user_detail = UserSerializer(source='user', read_only=True)
@@ -25,7 +41,7 @@ class PropertyImageSerializer(serializers.ModelSerializer):
 
 class PropertyListSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.get_full_name', read_only=True)
-    owner_phone = serializers.CharField(source='owner.phone', read_only=True)
+    owner_phone = serializers.SerializerMethodField()
     type_display = serializers.CharField(source='get_property_type_display', read_only=True)
     primary_image = serializers.SerializerMethodField()
     user_rating = serializers.SerializerMethodField()
@@ -38,6 +54,14 @@ class PropertyListSerializer(serializers.ModelSerializer):
             'area', 'features', 'status', 'views_count', 'rating', 'rating_count',
             'user_rating', 'owner', 'owner_name', 'owner_phone', 'primary_image', 'created_at'
         ]
+
+    def get_owner_phone(self, obj):
+        # V-7: e'lon egasining telefon raqami faqat autentifikatsiya qilingan
+        # foydalanuvchiga ko'rsatiladi (anonim scraping'ning oldini oladi).
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            return obj.owner.phone or ''
+        return None
 
     def get_user_rating(self, obj):
         request = self.context.get('request')
@@ -111,6 +135,9 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
+    def validate_images(self, value):
+        return validate_uploaded_images(value)
+
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
         validated_data['owner'] = self.context['request'].user
@@ -137,6 +164,9 @@ class PropertyUpdateSerializer(serializers.ModelSerializer):
             'features', 'video_url', 'status', 'images', 'keep_image_ids'
         ]
         read_only_fields = ['id']
+
+    def validate_images(self, value):
+        return validate_uploaded_images(value)
 
     def validate_keep_image_ids(self, value):
         if not isinstance(value, list):

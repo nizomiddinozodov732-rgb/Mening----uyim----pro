@@ -21,14 +21,42 @@ _LOGIN_MAX_ATTEMPTS = 10  # 15 daqiqada shu miqdordan ko'p xato -> IP bloklanadi
 
 
 def get_client_ip(request):
-    """Proksi (Next.js/Nginx) orqasidagi haqiqiy mijoz IP manzilini aniqlash."""
+    """Proksi (Next.js/Nginx) orqasidagi haqiqiy mijoz IP manzilini aniqlash.
+
+    V-2: `X-Forwarded-For` faqat bevosita ulanish ishonchli proksidan
+    (`TRUSTED_PROXY_IPS`) kelganda hisobga olinadi. Bunday holda XFF
+    ro'yxatidan proksilar soni (`NUM_PROXIES`) hisobga olinib, proksi o'zi
+    qo'shgan (o'ng tomondagi) manzil olinadi. Aks holda sarlavha butunlay
+    e'tiborsiz qoldirilib, `REMOTE_ADDR` ishlatiladi — shu yo'l bilan
+    soxtalashtirilgan XFF hisoblagichni IP'lar bo'yicha bo'lib tashlay olmaydi.
+    """
+    remote_addr = request.META.get('REMOTE_ADDR') or None
     xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    if xff:
-        # Ro'yxatdagi birinchi (eng chapdagi) manzil — asl mijoz
-        first = xff.split(',')[0].strip()
-        if first:
-            return first
-    return request.META.get('REMOTE_ADDR') or None
+    if xff and _is_trusted_proxy(remote_addr):
+        addrs = [addr.strip() for addr in xff.split(',') if addr.strip()]
+        if addrs:
+            num_proxies = _get_num_proxies()
+            if num_proxies > 0:
+                return addrs[-min(num_proxies, len(addrs))]
+            return addrs[-1]
+    return remote_addr
+
+
+def _is_trusted_proxy(remote_addr):
+    """`REMOTE_ADDR` ishonchli proksilar ro'yxatida bo'lsa True qaytaradi."""
+    if not remote_addr:
+        return False
+    from django.conf import settings
+    return remote_addr in getattr(settings, 'TRUSTED_PROXY_IPS', [])
+
+
+def _get_num_proxies():
+    """Oldimizdagi ishonchli proksilar soni (default 1)."""
+    from django.conf import settings
+    try:
+        return int(getattr(settings, 'NUM_PROXIES', 1))
+    except (TypeError, ValueError):
+        return 1
 
 
 def invalidate_blocked_ips_cache():

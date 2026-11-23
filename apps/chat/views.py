@@ -1,3 +1,5 @@
+import os
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,10 +10,48 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
-from apps.accounts.serializers import UserSerializer
+from apps.accounts.serializers import PublicUserSerializer
 from apps.properties.models import PropertyImage, PropertyRating
 
 User = get_user_model()
+
+# V-5: chat fayllari uchun allowlist. `.html`/`.svg`/`.js` kabi fayllar
+# same-origin `/media/` orqali xizmat qilinganda saqlangan XSS (stored XSS)
+# hosil qilardi — token localStorage'da saqlangani uchun bu seans o'g'irlashga
+# olib kelishi mumkin edi.
+MAX_CHAT_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+ALLOWED_CHAT_EXTENSIONS = {
+    '.jpg', '.jpeg', '.png', '.webp', '.gif',
+    '.mp4', '.webm', '.mov',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt',
+}
+ALLOWED_CHAT_CONTENT_TYPES = {
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+    'video/mp4', 'video/webm', 'video/quicktime',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+}
+
+
+def validate_chat_file(file_obj):
+    """V-5: fayl turi va hajmini tekshiradi. Noto'g'ri bo'lsa 400 qaytaradi."""
+    if file_obj.size > MAX_CHAT_FILE_SIZE:
+        raise ValidationError({
+            'file': f"Fayl hajmi {MAX_CHAT_FILE_SIZE // (1024 * 1024)}MB dan oshmasligi kerak."
+        })
+    ext = os.path.splitext(file_obj.name or '')[1].lower()
+    if ext not in ALLOWED_CHAT_EXTENSIONS:
+        raise ValidationError({'file': "Bu fayl turi ruxsat etilmagan."})
+    content_type = (getattr(file_obj, 'content_type', '') or '').lower()
+    if content_type and content_type not in ALLOWED_CHAT_CONTENT_TYPES:
+        raise ValidationError({'file': "Bu fayl turi ruxsat etilmagan."})
+    return file_obj
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -104,6 +144,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         file_name = ''
         file_size = None
         if file_obj:
+            # V-5: allowlist + hajm chegarasi (stored XSS oldini oladi)
+            validate_chat_file(file_obj)
             file_name = file_obj.name
             file_size = file_obj.size
 
@@ -169,4 +211,5 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 last_name__icontains=q
             )
         users = qs[:30]
-        return Response(UserSerializer(users, many=True, context={'request': request}).data)
+        # V-4: boshqa foydalanuvchilar ro'yxati — faqat PII'siz maydonlar
+        return Response(PublicUserSerializer(users, many=True, context={'request': request}).data)
